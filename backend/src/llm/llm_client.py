@@ -55,6 +55,9 @@ async def generate(messages: list[dict], max_retries: int = 2, channel: str = "w
     """
     max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
     temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
+    # json_object constraint can cause malformed output on some HF models.
+    # Voice uses robust fallback parsing; web keeps the constraint for reliability.
+    use_json = channel != "voice"
 
     last_exc = None
     for attempt in range(max_retries + 1):
@@ -66,8 +69,9 @@ async def generate(messages: list[dict], max_retries: int = 2, channel: str = "w
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "top_p": LLM_TOP_P,
-                "response_format": {"type": "json_object"},
             }
+            if use_json:
+                create_kwargs["response_format"] = {"type": "json_object"}
 
             response = await run_in_threadpool(
                 lambda: client.chat.completions.create(**create_kwargs)

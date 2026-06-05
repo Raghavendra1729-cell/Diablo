@@ -191,7 +191,7 @@ if __name__ == "__main__":
     assistant_config = build_assistant_config(
         name="Linga AI Assistant",
         backend_url=BACKEND_URL,
-        first_message="Hello! I'm Linga's AI assistant. How can I help you today?",
+        first_message="Diablo here — Linga's personal AI butler. How can I help you today?",
         voice_provider="vapi",
         voice_id="Elliot",
         system_prompt=persona_prompt,

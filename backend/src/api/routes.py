@@ -63,6 +63,71 @@ def normalize_email(raw: str) -> str:
     return fixed
 
 
+# ── Robust LLM output parsing (voice must never fail with "formatting issue") ─
+
+def _parse_llm_output(raw: str, channel: str) -> tuple[str | None, dict | None]:
+    """Parse LLM output into (response_text, tool_call_dict).
+
+    Returns (None, None) if parsing completely fails and retry needed.
+    For voice, falls back to using raw text as response on final attempt.
+    """
+    if not raw or not raw.strip():
+        return (None, None)
+    raw = raw.strip()
+
+    # Strategy 1: Strict Pydantic JSON parse (after stripping markdown fences)
+    try:
+        cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+        cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE)
+        cleaned = cleaned.strip()
+        parsed = LLMOutputSchema.model_validate_json(cleaned)
+        tc = parsed.tool_call.model_dump() if parsed.tool_call else None
+        return (parsed.response, tc)
+    except Exception:
+        pass
+
+    # Strategy 2: Find { ... } substring, try fixes
+    try:
+        start = raw.find('{')
+        end = raw.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            json_str = raw[start:end+1]
+            fixes = [json_str]
+            if json_str.count('{') > json_str.count('}'):
+                fixes.append(json_str + '}')
+            fixes.append(re.sub(r',\s*}', '}', json_str))
+            for fixed in fixes:
+                try:
+                    parsed = LLMOutputSchema.model_validate_json(fixed)
+                    tc = parsed.tool_call.model_dump() if parsed.tool_call else None
+                    return (parsed.response, tc)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    # Strategy 3: Voice — use raw text as response
+    if channel == "voice":
+        text = re.sub(r'\{[^}]*\}', '', raw)  # strip JSON fragments
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+        text = re.sub(r'\[BOOKING_WIDGET[^\]]*\]', '', text)
+        text = re.sub(r'\[CALENDAR_WIDGET\]', '', text)
+        text = re.sub(r'"thought_process"\s*:\s*"[^"]*"', '', text)
+        text = re.sub(r'"response"\s*:\s*"', '', text)
+        text = re.sub(r'"tool_call"\s*:\s*null', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        if text and len(text) > 3:
+            return (text, None)
+
+    # Strategy 4: Regex extract "response" field from malformed JSON
+    resp_match = re.search(r'"response"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+    if resp_match:
+        text = resp_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+        return (text, None)
+
+    return (None, None)
+
+
 # Request / Response schemas
 
 class Message(BaseModel):
@@ -171,35 +236,26 @@ async def chat(request: ChatRequest):
                 logger.error("[routes] LLM generation failed: %s\n%s", e, traceback.format_exc())
                 raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
-            # ── Stage 3: Extract tool call via Strict Pydantic JSON ─────────────────
-            try:
-                # Strip markdown code fences that some LLMs wrap JSON in
-                response_text_stripped = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
-                response_text_stripped = re.sub(r'\s*```\s*$', '', response_text_stripped, flags=re.MULTILINE)
-                # Also strip any leading/trailing whitespace-only lines
-                response_text_stripped = response_text_stripped.strip()
-                parsed_output = LLMOutputSchema.model_validate_json(response_text_stripped)
-
-                llm_text_response = parsed_output.response
-                if parsed_output.tool_call:
-                    tool_call = parsed_output.tool_call.model_dump()
-                else:
-                    tool_call = None
-                json_parse_failures = 0  # reset on success
-
-            except Exception as e:
-                logger.error("[routes] Pydantic JSON parsing failed: %s\nRaw response: %.300s", e, response_text)
+            # ── Stage 3: Extract response text + optional tool call ──────────────
+            llm_text_response, tool_call = _parse_llm_output(
+                response_text, request.channel
+            )
+            if llm_text_response is None:
+                # Complete parse failure — retry once
                 json_parse_failures += 1
-                # Retry once with a repair prompt instead of failing immediately
                 if json_parse_failures <= 1:
                     messages.append({"role": "assistant", "content": response_text})
-                    messages.append({"role": "user", "content": "Your last response was not valid JSON. Please output ONLY valid JSON matching the required schema. Start with { and end with }."})
-                    logger.info("[routes] Retrying after JSON parse failure (attempt %d/1)...", json_parse_failures)
+                    messages.append({"role": "user", "content": "Output valid JSON: {\"response\": \"...\", \"tool_call\": null} or {\"response\": \"...\", \"tool_call\": {\"name\": \"X\", \"arguments\": {...}}}"})
+                    logger.info("[routes] Retrying after parse failure (attempt %d/1)...", json_parse_failures)
                     continue
-                # Give up after retry
-                tool_call = None
-                llm_text_response = "I encountered a formatting issue while thinking. Please try again."
-                return ChatResponse(response=llm_text_response)
+                # Give up — use raw text as fallback for voice
+                if request.channel == "voice":
+                    llm_text_response = _clean_voice_text(response_text)
+                    tool_call = None
+                else:
+                    return ChatResponse(response="I encountered a formatting issue. Please try again.")
+            else:
+                json_parse_failures = 0  # reset on success
 
             # ── Stage 4: Handle tool calls ──────────────────────────────────────────
             if not tool_call:
@@ -244,7 +300,18 @@ async def chat(request: ChatRequest):
                         if result.success and result.data:
                             slots = result.data.get("slots", [])
                             date_checked = tool_call.get('arguments', {}).get('date', 'that date')
-                            slots_str = ", ".join(slots) if slots else "None available"
+                            # Format slots nicely for voice: strip leading zeros, add AM/PM hints
+                            if request.channel == "voice":
+                                nice_slots = []
+                                for s in slots:
+                                    try:
+                                        t = datetime.datetime.strptime(s, "%H:%M")
+                                        nice_slots.append(t.strftime("%-I:%M %p"))  # "4:30 PM" not "04:30"
+                                    except Exception:
+                                        nice_slots.append(s)
+                                slots_str = ", ".join(nice_slots) if nice_slots else "None available"
+                            else:
+                                slots_str = ", ".join(slots) if slots else "None available"
                             tool_result_content = f"[AVAILABILITY RESULTS for {date_checked}]:\n{slots_str}"
                         else:
                             tool_result_content = f"[AVAILABILITY ERROR]: {result.message}"
@@ -323,18 +390,25 @@ async def chat(request: ChatRequest):
                         )
 
                     if result.success:
-                        # Make the success message extremely natural for Voice channel
                         final_msg = result.message
                         if request.channel == "voice":
                             try:
                                 dt = datetime.datetime.strptime(date, "%Y-%m-%d")
-                                nice_date = dt.strftime("%A") # e.g. Tuesday
+                                today = datetime.datetime.now().date()
+                                if dt.date() == today:
+                                    nice_date = "today"
+                                else:
+                                    nice_date = dt.strftime("%A, %B %-d")  # "Tuesday, June 10"
                                 t_obj = datetime.datetime.strptime(booking_time, "%H:%M")
-                                nice_time = t_obj.strftime("%I:%M %p").lstrip("0") # e.g. 4:00 PM
-                                final_msg = f"Perfect! I have successfully booked your meeting for {nice_date} at {nice_time}. A confirmation has been sent to your email. I look forward to speaking with you!"
+                                nice_time = t_obj.strftime("%-I:%M %p")  # "3:30 PM"
+                                # Include email so caller knows what was used
+                                final_msg = (
+                                    f"Booked! {nice_date} at {nice_time}. "
+                                    f"Confirmation sent to {email}. "
+                                    f"I look forward to speaking with you, {name}!"
+                                )
                             except Exception:
-                                final_msg = "Perfect, your meeting is fully booked and confirmed. You'll receive an email shortly."
-
+                                final_msg = f"Booked! Confirmation sent to {email}. Looking forward to it!"
                         return ChatResponse(
                             response=final_msg,
                             tool_call=tool_call,
