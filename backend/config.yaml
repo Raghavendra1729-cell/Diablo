@@ -1,0 +1,35 @@
+embedding:
+  model: "BAAI/bge-small-en-v1.5"
+  device: "cpu"                 
+
+chunking:
+  chunk_size: 1000                    
+  overlap: 200                      
+
+vectordb:
+  collection: "sc_portfolio_gpu"
+  distance: "cosine"
+  score_threshold: 0.45              
+
+retrieval:
+  top_k: 50                       
+
+llm:
+  model: "deepseek-ai/DeepSeek-V4-Flash:fastest"
+  provider: "huggingface"           
+  base_url: "https://router.huggingface.co/v1"
+  max_tokens: 4096
+  temperature: 0.3
+  top_p: 0.9
+
+calendar:
+  provider: "calcom"                 
+  calcom_base_url: "https://api.cal.com/v2"
+
+persona:
+  name: "Linga Seetha Rama Raghavendra's AI Representative"
+  data_dir: "data"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
