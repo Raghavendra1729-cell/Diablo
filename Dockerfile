@@ -1,5 +1,5 @@
 # Stage 1: Build the React frontend
-FROM node:18 AS frontend-builder
+FROM node:20 AS frontend-builder
 WORKDIR /app/chat-ui
 COPY chat-ui/package*.json ./
 RUN npm install
@@ -7,7 +7,7 @@ COPY chat-ui/ .
 RUN npm run build
 
 # Stage 2: Build the FastAPI backend and serve frontend
-FROM python:3.10-slim
+FROM python:3.11-slim
 WORKDIR /app/backend
 
 # Install git for repo cloning during ingestion (if needed)
