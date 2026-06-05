@@ -220,6 +220,18 @@ User: "Yes."
 Assistant: {"response": "Booking now.", "tool_call": {"name": "book_meeting", "arguments": {"date": "2026-06-09", "time": "14:00", "email": "sarah.connor@gmail.com", "name": "Sarah Connor"}}}
 # NOTE: When user speaks "dot" and "at" in email, convert to "." and "@" in tool_call arguments.
 
+--- BOOKING FLOW (letter-by-letter email spelling) ---
+User: "My email is S E E T A dot 2 4 B C S 1 0 2 5 0 at S S T dot scaler dot com."
+Assistant: {"response": "Let me confirm: S E E T A dot 2 4 B C S 1 0 2 5 0 at S S T dot scaler dot com. Is that right?", "tool_call": null}
+User: "Yes, correct."
+Assistant: {"response": "Booking now.", "tool_call": {"name": "book_meeting", "arguments": {"date": "2026-06-10", "time": "13:30", "email": "seeta.24bcs10250@sst.scaler.com", "name": "Seeta"}}}
+# CRITICAL: When user spells EMAIL letter-by-letter with dashes/spaces (like "S-E-E-T-A" or "S E E T A"),
+# YOU MUST convert to the full word in the tool_call email argument:
+#   "S E E T A" → "seeta", "S-A-R-A-H" → "sarah"
+#   "2 4" → "24", "1 0 2 5 0" → "10250"
+#   "S S T" → "sst", "S C A L E R" → "scaler"
+#   "dot" → ".", "at" → "@"
+
 --- DON'T KNOW ---
 User: "What's his Kaggle rank?"
 Assistant: {"response": "I don't have any information about a Kaggle rank.", "tool_call": null}
@@ -263,7 +275,7 @@ def build_system_prompt(channel: str, context_chunks: list[str]) -> str:
 
 def _build_voice_prompt(current_date: str, context_block: str) -> str:
     """Compact voice prompt — ~500 tokens. Optimized for TTS latency and conciseness."""
-    return f"""You are Linga's AI assistant on a phone call. Linga is an AI Engineer (Bengaluru) seeking internship. He builds RAG pipelines, agentic AI, and scalable backends.
+    return f"""You are Diablo, Linga's personal AI butler. Linga is an AI Engineer (Bengaluru) seeking internship. He builds RAG pipelines, agentic AI, and scalable backends. Speak with sharp loyalty — you advocate fiercely for your master.
 
 TIME: {current_date}
 

@@ -27,40 +27,100 @@ router = APIRouter()
 
 # ── Email normalization for STT transcription errors ──────────────────────────
 
-def normalize_email(raw: str) -> str:
-    """Fix common speech-to-text errors in email addresses.
+def _is_spelled_out_email(raw: str) -> bool:
+    """Detect if email looks spelled-out (letter-by-letter, dashes, spaces between single chars).
 
-    STT frequently transcribes:
-      "john at gmail dot com"  →  needs "@" and "."
-      "john dot smith at email dot com"  →  "john.smith@email.com"
-      "JOHN AT GMAIL DOT COM"  →  lowercase + @ + .
-      "john @ gmail . com"  →  remove spaces
-
-    Returns cleaned email or original if no obvious fix pattern detected.
+    Examples of spelled-out patterns:
+      "S-E-E-T-A dot 24 B C S 1 0 2 5 0 at S S T dot scaler dot com"
+      "j o h n at g m a i l dot c o m"
+      "s a r a h dot c o n n o r at email dot com"
     """
     if not raw or "@" in raw:
-        # Already has @ — lowercase + strip spaces + fix double dots
+        # If it has @ and looks reasonably clean, it's not spelled out
+        cleaned = raw.lower().replace(" ", "")
+        if len(cleaned) < 80 and cleaned.count("@") == 1:
+            return False
+    # Check for telltale signs of letter-by-letter spelling
+    # Pattern: dashes between single letters (S-E-E-T-A) or dots between single letters
+    single_letter_dashes = bool(re.search(r'\b[a-zA-Z]-[a-zA-Z]', raw))
+    # Pattern: many spaces separating individual characters
+    space_separated_chars = len(re.findall(r'\b[a-zA-Z0-9]\s+[a-zA-Z0-9]\b', raw)) >= 2
+    # Pattern: "dot" and "at" as words
+    has_word_dot_at = bool(re.search(r'\b(dot|at)\b', raw.lower()))
+    return single_letter_dashes or space_separated_chars or has_word_dot_at
+
+
+async def llm_normalize_email(raw: str, user_message: str = "") -> str:
+    """Use LLM to interpret spelled-out email addresses.
+
+    When callers spell emails letter-by-letter over voice (e.g.,
+    "S E E T A dot 24 B C S at S S T dot scaler dot com"), algorithmic
+    parsing fails. The LLM understands these patterns naturally.
+    """
+    if not raw or not raw.strip():
+        return raw
+
+    # Quick cleanup for clean emails that just need basic fixes
+    if not _is_spelled_out_email(raw):
         fixed = raw.lower().replace(" ", "")
         while ".." in fixed:
             fixed = fixed.replace("..", ".")
         fixed = fixed.strip(".@")
-        return fixed
+        if "@" in fixed and "." in fixed.split("@")[-1]:
+            return fixed
+        return fixed if "@" in fixed else raw
 
-    # No @ sign — STT likely transcribed "at" as word
-    fixed = raw.lower().strip()
-    # Replace " at " with "@" (with spaces to avoid matching "at" inside words)
-    fixed = fixed.replace(" at ", "@")
-    fixed = fixed.replace("(at)", "@")
-    # Replace " dot " with "." (before removing spaces)
-    fixed = fixed.replace(" dot ", ".")
-    fixed = fixed.replace("(dot)", ".")
-    # Remove remaining spaces
-    fixed = fixed.replace(" ", "")
-    # Clean up double dots, trailing dots, leading @
-    while ".." in fixed:
-        fixed = fixed.replace("..", ".")
-    fixed = fixed.strip(".@")
-    return fixed
+    # Spelled-out email — let LLM interpret it
+    context = user_message if user_message else raw
+    prompt = (
+        f"The user spelled their email over voice. Convert it to a proper email address.\n\n"
+        f"User said: \"{context}\"\n\n"
+        f"Rules:\n"
+        f"- Join spelled-out letters: S E E T A → seeta, J O H N → john\n"
+        f"- \"dot\" → \".\", \"at\" → \"@\"\n"
+        f"- Remove dashes between single letters: S-E-E-T-A → seeta\n"
+        f"- Numbers stay as-is: 2 4 → 24, 1 0 2 5 0 → 10250\n"
+        f"- Domain spelled out: S S T → sst, S C A L E R → scaler\n"
+        f"- Return ONLY the email address. No other text. No explanation."
+    )
+
+    try:
+        from src.llm.llm_client import get_client
+        from src.config import LLM_MODEL, LLM_TOP_P
+        from starlette.concurrency import run_in_threadpool
+
+        client = get_client()
+        response = await run_in_threadpool(
+            lambda: client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": "You convert spelled-out email addresses to proper format. Return ONLY the email address, nothing else."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=40,
+                temperature=0.0,
+                top_p=LLM_TOP_P,
+                response_format={"type": "text"},
+            )
+        )
+        result = (response.choices[0].message.content or "").strip().lower()
+        # Clean up common LLM artifacts
+        result = result.replace(" ", "")
+        result = result.strip(".@\"'`")
+        # Validate it looks like an email
+        if "@" in result and "." in result.split("@")[-1]:
+            logger.info("[routes] LLM normalized email: %r → %r", raw[:80], result)
+            return result
+        logger.warning("[routes] LLM email normalization produced invalid result: %r → %r", raw[:80], result)
+        return raw
+    except Exception as e:
+        logger.error("[routes] LLM email normalization failed: %s", e)
+        # Fall back to basic cleanup
+        fixed = raw.lower()
+        fixed = fixed.replace(" at ", "@").replace(" dot ", ".")
+        fixed = fixed.replace(" ", "").replace("-", "")
+        fixed = fixed.strip(".@")
+        return fixed if "@" in fixed else raw
 
 
 # ── Robust LLM output parsing (voice must never fail with "formatting issue") ─
@@ -126,6 +186,32 @@ def _parse_llm_output(raw: str, channel: str) -> tuple[str | None, dict | None]:
         return (text, None)
 
     return (None, None)
+
+
+def _clean_voice_text(raw: str) -> str:
+    """Last-resort cleaner: strip JSON fragments, markdown, and UI widgets from raw LLM output
+    so TTS reads naturally when JSON parsing fails completely."""
+    if not raw:
+        return "I'm having trouble processing that."
+    text = raw
+    # Strip JSON objects/fragments
+    text = re.sub(r'\{[^}]*\}', '', text)
+    text = re.sub(r'\"[a-z_]+\"\s*:\s*\"[^"]*\"', '', text)
+    text = re.sub(r'\"[a-z_]+\"\s*:\s*[^,}]+', '', text)
+    # Strip markdown
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    text = re.sub(r'#+\s*', '', text)
+    text = text.replace('`', '')
+    # Strip UI widgets
+    text = re.sub(r'\[BOOKING_WIDGET[^\]]*\]', '', text)
+    text = re.sub(r'\[CALENDAR_WIDGET\]', '', text)
+    # Collapse whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    if not text or len(text) < 3:
+        return "I'm having trouble processing that."
+    return text
 
 
 # Request / Response schemas
@@ -369,7 +455,7 @@ async def chat(request: ChatRequest):
                     args = tool_call.get("arguments", {})
                     date = args.get("date", "")
                     booking_time = args.get("time", "")
-                    email = normalize_email(args.get("email", ""))
+                    email = await llm_normalize_email(args.get("email", ""), user_message)
                     name = args.get("name", "").strip()
 
                     if not all([date, booking_time, email, name]):

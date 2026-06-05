@@ -55,11 +55,13 @@ async def generate(messages: list[dict], max_retries: int = 2, channel: str = "w
     """
     max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
     temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
-    # json_object constraint can cause malformed output on some HF models.
-    # Voice uses robust fallback parsing; web keeps the constraint for reliability.
-    use_json = channel != "voice"
+    # Voice needs json_object too — otherwise DeepSeek V4 Flash outputs plain text
+    # and tool calls are lost. Robust fallback parsing in _parse_llm_output handles
+    # any malformed JSON safely.
+    use_json = True
 
     last_exc = None
+    tried_json_fallback = False
     for attempt in range(max_retries + 1):
         try:
             client = get_client()
@@ -80,6 +82,15 @@ async def generate(messages: list[dict], max_retries: int = 2, channel: str = "w
             return (content or "").strip()
         except Exception as exc:
             last_exc = exc
+            # If json_object causes errors, fall back to plain text on next attempt
+            if use_json and not tried_json_fallback:
+                logger.warning(
+                    "[llm] json_object may be unsupported, falling back to plain text. Error: %s", exc
+                )
+                use_json = False
+                tried_json_fallback = True
+                await asyncio.sleep(0.5)
+                continue
             if attempt < max_retries:
                 wait = 2 ** attempt
                 logger.warning("[llm] Attempt %d failed, retrying in %ds: %s", attempt + 1, wait, exc)
