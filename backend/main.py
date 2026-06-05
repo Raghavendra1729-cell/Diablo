@@ -81,8 +81,6 @@ app.add_middleware(
 )
 
 
-import time as _time
-
 # Add a periodic full cleanup every 5 minutes
 _last_full_cleanup = 0.0
 

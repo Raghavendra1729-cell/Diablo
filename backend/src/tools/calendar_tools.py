@@ -14,7 +14,6 @@ so the rest of the pipeline can be developed / tested without live credentials.
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Optional
 
 import httpx
 

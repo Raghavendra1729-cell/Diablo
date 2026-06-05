@@ -87,8 +87,8 @@ def load_repo_from_url(repo_url: str, branch: str = "main") -> list[dict]:
         except ImportError:
             logger.error("[ingest] GitPython not installed. Run: pip install GitPython")
             return docs
-        logger.info("[ingest] Cloning %s ...", repo_url)
-        repo = Repo.clone_from(repo_url, tmpdir)
+        logger.info("[ingest] Cloning %s (branch: %s)...", repo_url, branch)
+        repo = Repo.clone_from(repo_url, tmpdir, branch=branch)
         
         # Extract full commit history for RAG grounding
         try:

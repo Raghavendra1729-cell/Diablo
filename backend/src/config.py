@@ -21,7 +21,6 @@ with open(CONFIG_PATH) as f:
 
 # Embedding
 EMBED_MODEL = _yaml["embedding"]["model"]
-EMBED_DEVICE = _yaml["embedding"]["device"]
 
 # Chunking
 CHUNK_SIZE = _yaml["chunking"]["chunk_size"]
@@ -29,7 +28,6 @@ CHUNK_OVERLAP = _yaml["chunking"]["overlap"]
 
 # Vector DB
 VECTORDB_COLLECTION = _yaml["vectordb"]["collection"]
-VECTORDB_SCORE_THRESHOLD = _yaml["vectordb"]["score_threshold"]
 RETRIEVAL_TOP_K = _yaml["retrieval"]["top_k"]
 
 # Qdrant connection (from .env for secrets, config.yaml for collection name)
@@ -40,7 +38,6 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 
 # LLM
 LLM_MODEL = _yaml["llm"]["model"]
-LLM_PROVIDER = _yaml["llm"]["provider"]
 LLM_BASE_URL = _yaml["llm"]["base_url"]
 LLM_MAX_TOKENS = _yaml["llm"]["max_tokens"]
 LLM_TEMPERATURE = _yaml["llm"]["temperature"]
@@ -53,7 +50,6 @@ CAL_EVENT_TYPE_ID = os.getenv("CAL_EVENT_TYPE_ID", "")
 CAL_BASE_URL = _yaml["calendar"]["calcom_base_url"]
 
 # Persona
-PERSONA_NAME = os.getenv("PERSONA_NAME", _yaml["persona"]["name"])
 DATA_DIR = BASE_DIR / _yaml["persona"]["data_dir"]
 
 # Server

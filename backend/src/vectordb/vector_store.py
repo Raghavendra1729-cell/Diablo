@@ -42,7 +42,6 @@ from src.config import (
     QDRANT_URL,
     RETRIEVAL_TOP_K,
     VECTORDB_COLLECTION,
-    VECTORDB_SCORE_THRESHOLD,
 )
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,3 @@
-import os
 from fastembed import TextEmbedding, SparseTextEmbedding
 import logging
 

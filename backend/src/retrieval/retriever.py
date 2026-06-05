@@ -25,8 +25,6 @@ from src.vectordb.vector_store import search, search_with_filter
 
 logger = logging.getLogger(__name__)
 
-from functools import lru_cache
-import hashlib
 import time
 
 # Simple TTL cache for retrieval results (cache up to 64 unique queries)
@@ -267,13 +265,6 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
             return [NO_CONTEXT_SENTINEL]
 
         # Step 4 — Cross-encoder reranking (DISABLED FOR SPEED on HuggingFace CPU)
-        try:
-            texts = [hit["text"] for hit in hits]
-            # Bypass reranking and just slice the top_k hits from Qdrant directly
-            reranked_texts = texts[:effective_top_k]
-        except Exception as e:
-            logger.error("[retriever] Reranking bypass failed: %s\n%s", e, traceback.format_exc())
-            reranked_texts = [hit["text"] for hit in hits[:effective_top_k]]
 
         # Format the top reranked chunks mapping back to original hits
         try:
