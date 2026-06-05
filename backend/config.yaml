@@ -12,7 +12,7 @@ vectordb:
   score_threshold: 0.45              
 
 retrieval:
-  top_k: 5                       
+  top_k: 10                       
 
 llm:
   model: "deepseek-ai/DeepSeek-V4-Flash:fastest"

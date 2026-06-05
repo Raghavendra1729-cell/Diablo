@@ -42,15 +42,19 @@ def _headers(version: str = _CAL_API_VERSION_SLOTS) -> dict[str, str]:
     }
 
 
-def _to_ist_iso(date: str, time_slot: str) -> str:
-    """Convert 'YYYY-MM-DD' + 'HH:MM' → ISO-8601 string with IST offset.
+def _to_iso(date: str, time_slot: str, tz_name: str) -> str:
+    """Convert 'YYYY-MM-DD' + 'HH:MM' → ISO-8601 string with the requested timezone offset.
 
     Example:
-        _to_ist_iso("2026-06-10", "10:00") → "2026-06-10T10:00:00+05:30"
+        _to_iso("2026-06-10", "10:00", "Asia/Kolkata") → "2026-06-10T10:00:00+05:30"
     """
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = _IST
     return (
         datetime.strptime(f"{date} {time_slot}", "%Y-%m-%d %H:%M")
-        .replace(tzinfo=_IST)
+        .replace(tzinfo=tz)
         .isoformat()
     )
 
@@ -80,7 +84,11 @@ async def check_availability(
     if not CAL_API_KEY:
         logger.warning("[tools/calendar] CAL_API_KEY not set — returning dynamic mock slots.")
         try:
-            now = datetime.now(_IST)
+            tz = ZoneInfo(timezone)
+        except Exception:
+            tz = _IST
+        try:
+            now = datetime.now(tz)
             requested_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
             return ToolResult(
@@ -92,6 +100,8 @@ async def check_availability(
         start_hour = 9  # default start 9 AM
         if requested_date == now.date():
             start_hour = max(9, now.hour + 1)
+        elif requested_date < now.date():
+            start_hour = 18  # no slots in the past
         
         for h in range(start_hour, 18):  # up to 5 PM
             mock_slots.append(f"{h:02d}:00")
@@ -111,7 +121,12 @@ async def check_availability(
         )
 
     try:
-        datetime.strptime(date, "%Y-%m-%d")
+        tz = ZoneInfo(timezone)
+    except Exception:
+        tz = _IST
+
+    try:
+        dt_date = datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         return ToolResult(
             success=False,
@@ -119,8 +134,11 @@ async def check_availability(
             message=f"Invalid date format: '{date}'. Please use YYYY-MM-DD.",
         )
 
-    start_time = f"{date}T00:00:00+05:30"
-    end_time = f"{date}T23:59:59+05:30"
+    start_dt = dt_date.replace(tzinfo=tz)
+    end_dt = datetime.strptime(f"{date} 23:59:59", "%Y-%m-%d %H:%M:%S").replace(tzinfo=tz)
+
+    start_time = start_dt.isoformat()
+    end_time = end_dt.isoformat()
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -137,12 +155,14 @@ async def check_availability(
 
         data = response.json()
         # v2 response shape: {"data": {"2026-06-10": [{"start": "..."}, ...]}}
-        slots_dict: dict = data.get("data", {})
+        slots_dict = data.get("data", {})
         date_entries: list = []
-        for key, value in slots_dict.items():
-            if key.startswith(date):
-                date_entries = value
-                break
+        if isinstance(slots_dict, dict):
+            for value in slots_dict.values():
+                if isinstance(value, list):
+                    date_entries.extend(value)
+        elif isinstance(slots_dict, list):
+            date_entries.extend(slots_dict)
 
         slots: list[str] = []
         for slot in date_entries:
@@ -151,12 +171,14 @@ async def check_availability(
                 continue
             try:
                 dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-                # Convert to IST for display
-                ist_dt = dt.astimezone(_IST)
-                slots.append(ist_dt.strftime("%H:%M"))
+                # Convert to requested timezone for display
+                tz_dt = dt.astimezone(tz)
+                # Only include slots that fall on the requested local date
+                if tz_dt.strftime("%Y-%m-%d") == date:
+                    slots.append(tz_dt.strftime("%H:%M"))
             except ValueError:
-                # Fallback
-                slots.append(time_str[-13:-8] if len(time_str) >= 13 else time_str)
+                # Skip invalid slots
+                continue
 
         if not slots:
             return ToolResult(
@@ -234,7 +256,7 @@ async def book_slot(
         )
 
     try:
-        start_iso = _to_ist_iso(date, time)
+        start_iso = _to_iso(date, time, timezone)
     except ValueError:
         return ToolResult(
             success=False,
@@ -393,6 +415,7 @@ async def reschedule_booking(
     booking_id: str,
     new_date: str,
     new_time_slot: str,
+    timezone: str = "Asia/Kolkata",
     reason: str = "Rescheduled via AI assistant",
 ) -> ToolResult:
     """Reschedule an existing Cal.com booking to a new date/time.
@@ -418,7 +441,7 @@ async def reschedule_booking(
         )
 
     try:
-        new_start_iso = _to_ist_iso(new_date, new_time_slot)
+        new_start_iso = _to_iso(new_date, new_time_slot, timezone)
     except ValueError:
         return ToolResult(
             success=False,
@@ -499,8 +522,9 @@ async def list_bookings(status: str = "upcoming") -> ToolResult:
             response.raise_for_status()
 
         data = response.json()
-        raw_bookings: list[dict] = data.get("data", [])
-        # v2 response: {"data": [booking, ...], "pagination": {...}}
+        raw_bookings = data.get("data", [])
+        if not isinstance(raw_bookings, list):
+            raw_bookings = [raw_bookings] if isinstance(raw_bookings, dict) else []
 
         bookings: list[dict] = []
         for b in raw_bookings:

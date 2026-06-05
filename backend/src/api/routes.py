@@ -94,13 +94,13 @@ async def chat(request: ChatRequest):
 
         # ── Stage 2: CRAG pipeline ──────────────────────────────────────────────
         try:
-            # For short or fragmented voice queries, inject recent history into the search query
-            # so the vector database has enough context to find the right chunks.
+            # For short or fragmented voice queries, inject recent USER history into the search query
+            # We ONLY use user messages so we don't dilute the vector search with the assistant's chatty answers.
             search_query = user_message
             if request.history and len(user_message.split()) <= 15:
-                # Grab up to the last 2 messages (e.g., previous user question + assistant answer)
-                recent_history = " ".join([m.content for m in request.history[-2:]])
-                search_query = f"{recent_history} {user_message}"
+                recent_user_msgs = [m.content for m in request.history[-3:] if m.role == "user"]
+                if recent_user_msgs:
+                    search_query = f"{' '.join(recent_user_msgs)} {user_message}"
                 
             context_chunks = await run_in_threadpool(retrieve_context, search_query)
         except Exception as e:
@@ -149,7 +149,13 @@ async def chat(request: ChatRequest):
                 
             tool_name = tool_call.get("name", "")
             
-            if tool_name in ("search_knowledge_base", "check_availability"):
+            state_changing_tools = (
+                "book_slot", "book_interview", "book_meeting",
+                "cancel_booking", "cancel_meeting",
+                "reschedule_booking", "reschedule_meeting"
+            )
+
+            if tool_name not in state_changing_tools:
                 if search_turns >= max_search_turns:
                     logger.warning("[routes] Max search turns exceeded.")
                     return ChatResponse(response="I couldn't process that after multiple attempts.")
@@ -181,6 +187,20 @@ async def chat(request: ChatRequest):
                             tool_result_content = f"[AVAILABILITY RESULTS for {date_checked}]:\n{slots_str}"
                         else:
                             tool_result_content = f"[AVAILABILITY ERROR]: {result.message}"
+                            
+                    elif tool_name == "list_bookings":
+                        if result.success and result.data:
+                            bookings = result.data.get("bookings", [])
+                            if bookings:
+                                b_strs = [f"ID: {b.get('id')} | Title: {b.get('title')} | Start: {b.get('start')}" for b in bookings]
+                                tool_result_content = f"[LIST BOOKINGS]:\n" + "\n".join(b_strs)
+                            else:
+                                tool_result_content = "[LIST BOOKINGS]: No bookings found."
+                        else:
+                            tool_result_content = f"[LIST BOOKINGS ERROR]: {result.message}"
+                            
+                    else:
+                        tool_result_content = f"[TOOL ERROR]: {result.message}"
 
                     messages.append({"role": "user", "content": tool_result_content})
                     logger.info("[routes] Multi-turn %s step %d completed.", tool_name, search_turns)
@@ -326,9 +346,17 @@ async def vapi_chat_completions(req: dict):
         }
 
     try:
-        user_message = messages[-1].get("content", "")
+        user_message = messages[-1].get("content") or ""
     except (IndexError, KeyError, TypeError) as e:
         logger.error("[routes] Vapi: failed to extract user message from request: %s\n%s", e, traceback.format_exc())
+        return {
+            "id": f"chatcmpl-{int(time.time())}",
+            "object": "chat.completion",
+            "model": "custom-vapi-backend",
+            "choices": [{"message": {"role": "assistant", "content": "I didn't catch that. Could you repeat?"}}]
+        }
+
+    if not user_message.strip():
         return {
             "id": f"chatcmpl-{int(time.time())}",
             "object": "chat.completion",
@@ -341,8 +369,9 @@ async def vapi_chat_completions(req: dict):
         history = []
         for m in messages[:-1]:
             role = "assistant" if m.get("role") == "function" else m.get("role", "user")
-            if role in ("user", "assistant", "system"):
-                history.append(Message(role=role, content=m.get("content", "")))
+            content = m.get("content") or ""
+            if role in ("user", "assistant", "system") and content:
+                history.append(Message(role=role, content=content))
     except Exception as e:
         logger.error("[routes] Vapi: message translation failed: %s\n%s", e, traceback.format_exc())
         history = []

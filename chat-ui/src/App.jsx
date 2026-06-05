@@ -211,7 +211,12 @@ function CalendarWidget({ onConfirm, disabled }) {
   const [error, setError] = useState('');
 
   const fetchSlots = async (selectedDate) => {
-    if (!selectedDate) return;
+    if (!selectedDate) {
+      setSlots([]);
+      setSelectedSlot('');
+      setError('');
+      return;
+    }
     setLoading(true);
     setError('');
     setSlots([]);
@@ -220,7 +225,8 @@ function CalendarWidget({ onConfirm, disabled }) {
       const res = await axios.get(`${API_URL}/v1/calendar/slots?date=${selectedDate}`);
       setSlots(res.data.slots || []);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to fetch slots.');
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Failed to fetch slots.');
     } finally {
       setLoading(false);
     }
@@ -327,7 +333,7 @@ function CalendarWidget({ onConfirm, disabled }) {
   );
 }
 
-const widgetRegex = /\[BOOKING_WIDGET\s+date="([^"]+)"\s+slots="([^"]+)"\]/;
+const widgetRegex = /\[BOOKING_WIDGET\s+date="([^"]+)"\s+slots="([^"]*)"\]/;
 const calendarWidgetRegex = /\[CALENDAR_WIDGET\]/;
 
 const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isDisabled }) {
@@ -341,6 +347,17 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
     };
   }, []);
 
+  // Safely get content string
+  const contentStr = typeof msg.content === 'string' ? msg.content : '';
+
+  // Extract Booking Widget or Calendar Widget tag if present
+  const match = !isUser ? contentStr.match(widgetRegex) : null;
+  const calendarMatch = !isUser ? contentStr.match(calendarWidgetRegex) : null;
+  
+  let contentWithoutWidget = contentStr;
+  if (match) contentWithoutWidget = contentWithoutWidget.replace(widgetRegex, '');
+  if (calendarMatch) contentWithoutWidget = contentWithoutWidget.replace(calendarWidgetRegex, '');
+
   const handleCopy = useCallback(async () => {
     if (copyTimeout.current) clearTimeout(copyTimeout.current);
     const handleSuccess = () => {
@@ -348,11 +365,11 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
       copyTimeout.current = setTimeout(() => setIsCopied(false), 2000);
     };
     try {
-      await navigator.clipboard.writeText(msg.content);
+      await navigator.clipboard.writeText(contentWithoutWidget);
       handleSuccess();
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = msg.content;
+      ta.value = contentWithoutWidget;
       ta.style.cssText = 'position:fixed;opacity:0;';
       document.body.appendChild(ta);
       ta.select();
@@ -360,15 +377,7 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
       document.body.removeChild(ta);
       handleSuccess();
     }
-  }, [msg.content]);
-
-  // Extract Booking Widget or Calendar Widget tag if present
-  const match = !isUser ? msg.content.match(widgetRegex) : null;
-  const calendarMatch = !isUser ? msg.content.match(calendarWidgetRegex) : null;
-  
-  let contentWithoutWidget = msg.content || '';
-  if (match) contentWithoutWidget = contentWithoutWidget.replace(widgetRegex, '');
-  if (calendarMatch) contentWithoutWidget = contentWithoutWidget.replace(calendarWidgetRegex, '');
+  }, [contentWithoutWidget]);
 
   return (
     <div className={`flex items-start gap-3 group animate-message-in ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -560,7 +569,8 @@ export default function App() {
         { role: 'assistant', content: aiText || '', booking_confirmed, booking_details },
       ]);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'Unable to reach the server.';
+      const rawDetail = err.response?.data?.detail;
+      const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : err.message || 'Unable to reach the server.');
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `**Connection error** — ${detail}\n\nMake sure the backend is running at \`${API_URL}\`.` },

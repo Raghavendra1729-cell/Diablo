@@ -187,10 +187,10 @@ Output entirely as JSON matching this schema:
 {{
   "thought_process": "Internal reasoning.",
   "response": "Final message to user.",
-  "tool_call": {{"name": "tool", "arguments": {{"arg": "val"}}}} // OR null
+  "tool_call": {{"name": "tool", "arguments": {{"arg": "val"}}}}
 }}
 ```
-CRITICAL: Starts with `{{`, ends with `}}`. No text outside JSON.
+CRITICAL: Starts with `{{`, ends with `}}`. No text outside JSON. If no tool is needed, set `"tool_call": null`.
 
 {format_rules}
 
