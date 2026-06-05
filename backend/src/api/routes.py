@@ -94,7 +94,15 @@ async def chat(request: ChatRequest):
 
         # ── Stage 2: CRAG pipeline ──────────────────────────────────────────────
         try:
-            context_chunks = await run_in_threadpool(retrieve_context, user_message)
+            # For short or fragmented voice queries, inject recent history into the search query
+            # so the vector database has enough context to find the right chunks.
+            search_query = user_message
+            if request.history and len(user_message.split()) <= 15:
+                # Grab up to the last 2 messages (e.g., previous user question + assistant answer)
+                recent_history = " ".join([m.content for m in request.history[-2:]])
+                search_query = f"{recent_history} {user_message}"
+                
+            context_chunks = await run_in_threadpool(retrieve_context, search_query)
         except Exception as e:
             logger.error("[routes] Context retrieval failed: %s\n%s", e, traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Context retrieval error: {str(e)}")
@@ -215,8 +223,21 @@ async def chat(request: ChatRequest):
                         )
 
                     if result.success:
+                        # Make the success message extremely natural for Voice channel
+                        final_msg = result.message
+                        if request.channel == "voice":
+                            try:
+                                import datetime
+                                dt = datetime.datetime.strptime(date, "%Y-%m-%d")
+                                nice_date = dt.strftime("%A") # e.g. Tuesday
+                                t_obj = datetime.datetime.strptime(booking_time, "%H:%M")
+                                nice_time = t_obj.strftime("%I:%M %p").lstrip("0") # e.g. 4:00 PM
+                                final_msg = f"Perfect! I have successfully booked your meeting for {nice_date} at {nice_time}. A confirmation has been sent to your email. I look forward to speaking with you!"
+                            except Exception:
+                                final_msg = "Perfect, your meeting is fully booked and confirmed. You'll receive an email shortly."
+
                         return ChatResponse(
-                            response=result.message,
+                            response=final_msg,
                             tool_call=tool_call,
                             booking_confirmed=True,
                             booking_details=result.data,
