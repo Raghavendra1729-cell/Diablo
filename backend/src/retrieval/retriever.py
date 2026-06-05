@@ -242,10 +242,11 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
             logger.info("[retriever] No chunks found for query: %.80s", query)
             return [NO_CONTEXT_SENTINEL]
 
-        # Step 4 — Cross-encoder reranking for precision
+        # Step 4 — Cross-encoder reranking (DISABLED FOR SPEED on HuggingFace CPU)
         try:
             texts = [hit["text"] for hit in hits]
-            reranked_texts = rerank_chunks(query, texts, top_k=effective_top_k)
+            # Bypass reranking and just slice the top_k hits from Qdrant directly
+            reranked_texts = texts[:effective_top_k]
         except Exception as e:
             logger.error("[retriever] Reranking bypass failed: %s\n%s", e, traceback.format_exc())
             reranked_texts = [hit["text"] for hit in hits[:effective_top_k]]
