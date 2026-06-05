@@ -178,7 +178,7 @@ body {
 /* ─── Send Button ─── */
 .btn-send {
   background: var(--color-accent);
-  color: #ffffff;
+  color: #1e3a8a;
   border-radius: 12px;
   padding: 10px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);

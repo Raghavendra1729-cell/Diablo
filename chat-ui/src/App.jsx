@@ -57,7 +57,7 @@ export default function App() {
           <div className="flex items-center gap-3.5">
             <div className="relative">
               <Avatar className="w-10 h-10 shadow-md avatar-pulse bg-gradient-to-br from-accent to-accent2">
-                <AvatarFallback className="bg-transparent"><Bot className="w-5 h-5 text-white" /></AvatarFallback>
+                <AvatarFallback className="bg-transparent"><Bot className="w-5 h-5 text-blue-900" /></AvatarFallback>
               </Avatar>
               <span className="absolute -bottom-[2px] -right-[2px]">
                 <StatusDot />
