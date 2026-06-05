@@ -25,9 +25,9 @@
 *   *Cause:* The LLM occasionally hallucinated invalid dates (e.g., `2026-06-31` or `2026-99-99`) when guessing relative time, causing Python's `datetime.strptime` to throw a `ValueError` and crash the server.
 *   *Fix:* Wrapped date parsing in `try/except ValueError` blocks that cleanly catch the exception and return a graceful error tool-message, prompting the LLM to correct itself.
 
-**3. Chunker Race Condition**
-*   *Cause:* Multi-threaded FastAPI requests attempting to cache LangChain splitters in a global dictionary caused memory corruption/race conditions under high load.
-*   *Fix:* Introduced a `threading.Lock()` in the `_get_splitter()` method to safely mutate the dictionary sequentially.
+**3. Embedding Explosion from Forked Third-Party Code**
+*   *Cause:* During data ingestion, one of the repositories generated an unexpected 30,000 chunks. Upon investigation, I discovered this massive spike was caused by a large forked third-party directory (containing external dependencies/libraries) that was inadvertently being embedded alongside my actual code. This bloated the vector space and degraded search precision.
+*   *Fix:* I identified the specific forked folder causing the issue, explicitly excluded it from the retrieval and ingestion pipeline, and re-ran the embedding process to keep the context clean and relevant.
 
 ---
 

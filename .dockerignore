@@ -1,0 +1,34 @@
+# Secrets
+.env
+*.env
+
+# Node
+chat-ui/node_modules/
+chat-ui/dist/
+
+# Python cache & venv
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/test-env/
+
+# Models — pre-downloaded at Docker build time via pre_download.py
+# Excluding local caches avoids 1.1GB+ of duplication
+backend/data/models/
+backend/models/
+
+# Logs & temp
+backend/logs/
+*.log
+
+# Git
+.git/
+
+# Duplicate configs (root Dockerfile is the canonical one)
+backend/Dockerfile
+
+# OS junk
+.DS_Store
+Thumbs.db

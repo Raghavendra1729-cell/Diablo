@@ -136,6 +136,11 @@ def recreate_collection(dim: int) -> None:
         field_name="doc_type",
         field_schema="keyword",
     )
+    client.create_payload_index(
+        collection_name=VECTORDB_COLLECTION,
+        field_name="repo_name",
+        field_schema="keyword",
+    )
 
 
 def upsert_points(points: list[PointStruct]) -> None:
@@ -239,12 +244,12 @@ def search_with_filter(
 
         # Build Qdrant filter from provided constraints
         query_filter: Optional[Filter] = None
+        conditions = []
         if doc_type:
-            conditions = [FieldCondition(key="doc_type", match=MatchValue(value=doc_type))]
-            if repo_name:
-                conditions.append(
-                    FieldCondition(key="repo_name", match=MatchValue(value=repo_name))
-                )
+            conditions.append(FieldCondition(key="doc_type", match=MatchValue(value=doc_type)))
+        if repo_name:
+            conditions.append(FieldCondition(key="repo_name", match=MatchValue(value=repo_name)))
+        if conditions:
             query_filter = Filter(must=conditions)
 
         sparse_query = models.SparseVector(indices=sparse_vector["indices"], values=sparse_vector["values"])

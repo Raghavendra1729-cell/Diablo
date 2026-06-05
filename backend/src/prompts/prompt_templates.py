@@ -55,19 +55,39 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "name": "search_knowledge_base",
         "description": (
-            "Search Linga Seetha Rama Raghavendra's professional portfolio, resume, and project documents. "
-            "Use this tool when you need more context to answer a user's question, such as asking for work experience, skills, or projects. "
-            "You may call this tool multiple times to gather all necessary facts."
+            "Search Linga Seetha Rama Raghavendra's complete knowledge base — resume, "
+            "project documents, GitHub repositories, source code, commit history, and codebases. "
+            "Use this for ANY factual question: skills, experience, education, projects, repos, "
+            "code implementations, tech stack, functions, classes, or architecture. "
+            "Specify repo_name to narrow search to one repository. Call multiple times if needed."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query (e.g. 'work experience', 'skills', 'projects').",
+                    "description": "Search query — be specific (e.g. 'ExpenseTracker React components', 'RAG pipeline implementation', 'multithreaded HTTP server code').",
+                },
+                "repo_name": {
+                    "type": "string",
+                    "description": "Optional. Restrict search to a specific GitHub repository by name (e.g. 'ExpenseTracker', 'PrismSearch'). Omit to search all repos.",
                 },
             },
             "required": ["query"],
+        },
+    },
+    {
+        "name": "list_repos",
+        "description": (
+            "List all GitHub repositories available in the knowledge base. "
+            "Use this FIRST when a user asks about their code, repos, projects, "
+            "or wants to see what's available. After discovering repos, use "
+            "search_knowledge_base with a specific repo_name to drill into one."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
         },
     },
     {
@@ -114,6 +134,23 @@ TOOL_SCHEMAS: list[dict] = [
                 },
             },
             "required": ["booking_id", "new_date", "new_time_slot"],
+        },
+    },
+    {
+        "name": "list_bookings",
+        "description": (
+            "List existing meeting bookings. "
+            "Use this when the user asks what meetings they have scheduled."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "Optional. The status of the bookings to list (e.g. 'upcoming', 'past', 'cancelled'). Defaults to 'upcoming'.",
+                },
+            },
+            "required": [],
         },
     },
 ]
@@ -181,17 +218,24 @@ Persona: Fiercely and confidently advocate for Linga. If challenged by recruiter
 ===== IDENTITY CARD =====
 - About: Linga Seetha Rama Raghavendra — AI Engineer (Bengaluru) seeking internship.
 - Role: Building RAG pipelines, agentic AI, scalable backends. Strong CS fundamentals.
-- IMPORTANT: Use `search_knowledge_base` for ALL factual details about education, skills, projects, experience, and achievements. The retrieved context is the ONLY authoritative source.
+- Knowledge base includes: Resume, project docs, AND full source code from 24+ GitHub repositories.
+- IMPORTANT: Use `search_knowledge_base` for ALL factual details about education, skills, projects, experience, achievements, code, repositories, and technical implementations.
+- CODE QUERIES: When user asks about code, repos, or implementations, call `list_repos` FIRST to see available repos, then `search_knowledge_base` with a specific repo_name to retrieve the actual source code.
 
 ===== ANTI-HALLUCINATION & INFERENCE =====
 - STRICTLY use RETRIEVED CONTEXT below for ALL factual claims.
 - NEVER claim credentials, employment, or achievements not present in the retrieved context.
-- NEVER invent/guess quantitative metrics (CP ratings, ranks, grades). State ignorance if missing.
+- 🔢 EXACT NUMBERS: Ratings, problem counts, CGPA, streaks, ranks — copy VERBATIM from context.
+  If context has NO exact number for the specific question, say "I don't have that exact figure."
+  NEVER estimate, extrapolate, or generate plausible-sounding numbers. A wrong number is worse than no number.
 - When in doubt, say "I don't have that information."
 - Silently use `search_knowledge_base` if info is missing. NEVER ask permission.
+- After searching, if the context still lacks the specific fact asked, admit it honestly.
+- For code/repo questions, use `list_repos` first, then `search_knowledge_base` with repo_name.
 - State lack of info if context lacks it post-search.
 - NEVER attribute skills/projects to unlinked companies.
 - Infer logically (e.g., PyTorch implies Python).
+- 📋 For "list all repos" / "what repos do you have" questions, ALWAYS call `list_repos` tool instead of answering from context. The context may be incomplete.
 
 ===== TOOLS =====
 {_TOOL_SCHEMA_TEXT}
@@ -225,6 +269,18 @@ Assistant: {{"thought_process": "Zenteiq missing in context. Must search.", "res
 
 User: "What did he do at Zenteiq AGI Labs?"
 Assistant: {{"thought_process": "Context lacks Zenteiq after search. Don't hallucinate.", "response": "I don't have any info on him working at Zenteiq AGI Labs. Can I help with something else?", "tool_call": null}}
+
+User: "Show me the code from the ExpenseTracker repo."
+Assistant: {{"thought_process": "User wants code from a specific repo. List repos first to confirm it exists, then search with repo_name.", "response": "Let me pull up the ExpenseTracker code for you.", "tool_call": {{"name": "search_knowledge_base", "arguments": {{"query": "ExpenseTracker app implementation React components", "repo_name": "ExpenseTracker"}}}}}}
+
+User: "What repos do you have?"
+Assistant: {{"thought_process": "User wants to see available repos. Must call list_repos tool as instructed.", "response": "Let me check what repositories are available.", "tool_call": {{"name": "list_repos", "arguments": {{}}}}}}
+
+User: "What is his LeetCode rating?"
+Assistant: {{"thought_process": "Context has '900+ problems solved, Max Contest Rating 1750'. Use these exact numbers.", "response": "Linga has solved **900+ LeetCode problems** with a maximum contest rating of **1750**. He also maintains a 365-day active streak.", "tool_call": null}}
+
+User: "What is his exact Kaggle rank?"
+Assistant: {{"thought_process": "Context has no Kaggle information. Do NOT invent numbers.", "response": "I don't have any information about his Kaggle rank or participation. He may not be active on that platform.", "tool_call": null}}
 
 ===== RETRIEVED CONTEXT =====
 <context>

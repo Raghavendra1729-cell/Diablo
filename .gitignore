@@ -1,10 +1,25 @@
 node_modules/
 venv/
 __pycache__/
+*.pyc
 .env
 .DS_Store
-backend/data/projects/
-backend/scripts/run_evals.py
+*.log
 
+# Backend data — large generated/cached files
+backend/data/projects/
 backend/data/models/
 backend/data/repos/
+backend/models/
+backend/logs/
+backend/test-env/
+
+# Tests output
+backend/tests/results*.json
+**/.pytest_cache/
+
+# HuggingFace trigger
+.trigger_build
+
+# Scripts not meant for repo
+backend/scripts/run_evals.py

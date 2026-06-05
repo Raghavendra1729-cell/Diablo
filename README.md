@@ -1,13 +1,12 @@
----
-title: Diablo AI Agent
-emoji: 🦀
-colorFrom: purple
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
----
-
+  ---                                                                                             
+    title: Diablo AI Agent                                                                          
+    emoji: 🦀                                                                                       
+    colorFrom: purple                                                                               
+    colorTo: blue                                                                                   
+    sdk: docker                                                                                     
+    app_port: 7860
+    pinned: false
+    ---
 
 # 🤖 Diablo - Autonomous Personal AI Agent
 
@@ -66,7 +65,7 @@ cp .env.example .env
 python ingest.py
 
 # Start the server
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Frontend Setup

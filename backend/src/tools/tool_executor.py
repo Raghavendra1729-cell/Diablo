@@ -18,7 +18,7 @@ from src.tools.calendar_tools import (
     reschedule_booking,
     list_bookings,
 )
-from src.tools.rag_tools import search_knowledge_base
+from src.tools.rag_tools import search_knowledge_base, list_repos
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Coroutine[Any, Any, ToolResult]]] = {
     "reschedule_meeting": reschedule_booking,
     "list_bookings": list_bookings,
     "search_knowledge_base": search_knowledge_base,
+    "list_repos": list_repos,
 }
 
 

@@ -98,7 +98,9 @@ _EXPANSION_MAP: dict[str, str] = {
 
 _RESUME_INTENT = re.compile(
     r"(education|degree|college|university|gpa|certification|certif|experience"
-    r"|job|worked at|company|position|role|career|publication|paper)",
+    r"|job|worked at|company|position|role|career|publication|paper"
+    r"|leetcode|codeforces|codechef|atcoder|cgpa|rating|streak"
+    r"|contest|hackathon|achievement|honor|dean|scholarship)",
     re.IGNORECASE,
 )
 _CODE_INTENT = re.compile(
@@ -181,6 +183,28 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
     -------
     List of formatted context strings, or [NO_CONTEXT_SENTINEL] when empty.
     """
+    return _retrieve_context_impl(query, top_k)
+
+
+def retrieve_context_filtered(
+    query: str,
+    repo_name: str,
+    top_k: int | None = None,
+) -> list[str]:
+    """Retrieve context filtered to a specific GitHub repository.
+
+    Forces ``doc_type='code'`` and filters by ``repo_name`` in Qdrant payload.
+    Useful when the LLM pinpoints a specific repo after discovery.
+    """
+    return _retrieve_context_impl(query, top_k, force_doc_type="code", repo_name=repo_name)
+
+
+def _retrieve_context_impl(
+    query: str,
+    top_k: int | None = None,
+    force_doc_type: str | None = None,
+    repo_name: str | None = None,
+) -> list[str]:
     effective_top_k = top_k if top_k is not None else RETRIEVAL_TOP_K
     cached = _get_cached(query, effective_top_k)
     if cached is not None:
@@ -208,12 +232,22 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
 
         # Step 3 — Hybrid search
         try:
-            intent = _detect_intent(query)
+            # Use forced doc_type if provided, otherwise detect intent
+            doc_filter = force_doc_type or _detect_intent(query)
             fetch_k = effective_top_k * 2  # Fetch 2x for reranker
 
-            if intent in ("resume", "code"):
-                logger.debug("[retriever] Intent detected: '%s' — using Qdrant filter index.", intent)
-                hits = search_with_filter(dense_vector, sparse_vector, doc_type=intent, top_k=fetch_k)
+            if doc_filter or repo_name:
+                logger.debug(
+                    "[retriever] Filtered search: doc_type=%s repo_name=%s",
+                    doc_filter, repo_name,
+                )
+                hits = search_with_filter(
+                    dense_vector,
+                    sparse_vector,
+                    doc_type=doc_filter,
+                    repo_name=repo_name,
+                    top_k=fetch_k,
+                )
             else:
                 hits = search(dense_vector, sparse_vector, top_k=fetch_k)
         except Exception as e:
