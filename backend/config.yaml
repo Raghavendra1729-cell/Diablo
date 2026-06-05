@@ -16,10 +16,12 @@ retrieval:
 
 llm:
   model: "deepseek-ai/DeepSeek-V4-Flash:fastest"
-  provider: "huggingface"           
+  provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
   max_tokens: 4096
+  max_tokens_voice: 250
   temperature: 0.3
+  temperature_voice: 0.5
   top_p: 0.9
 
 calendar:

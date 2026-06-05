@@ -40,7 +40,9 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 LLM_MODEL = _yaml["llm"]["model"]
 LLM_BASE_URL = _yaml["llm"]["base_url"]
 LLM_MAX_TOKENS = _yaml["llm"]["max_tokens"]
+LLM_MAX_TOKENS_VOICE = _yaml["llm"].get("max_tokens_voice", 150)
 LLM_TEMPERATURE = _yaml["llm"]["temperature"]
+LLM_TEMPERATURE_VOICE = _yaml["llm"].get("temperature_voice", 0.5)
 LLM_TOP_P = _yaml["llm"]["top_p"]
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 

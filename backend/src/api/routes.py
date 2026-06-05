@@ -25,6 +25,44 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# ── Email normalization for STT transcription errors ──────────────────────────
+
+def normalize_email(raw: str) -> str:
+    """Fix common speech-to-text errors in email addresses.
+
+    STT frequently transcribes:
+      "john at gmail dot com"  →  needs "@" and "."
+      "john dot smith at email dot com"  →  "john.smith@email.com"
+      "JOHN AT GMAIL DOT COM"  →  lowercase + @ + .
+      "john @ gmail . com"  →  remove spaces
+
+    Returns cleaned email or original if no obvious fix pattern detected.
+    """
+    if not raw or "@" in raw:
+        # Already has @ — lowercase + strip spaces + fix double dots
+        fixed = raw.lower().replace(" ", "")
+        while ".." in fixed:
+            fixed = fixed.replace("..", ".")
+        fixed = fixed.strip(".@")
+        return fixed
+
+    # No @ sign — STT likely transcribed "at" as word
+    fixed = raw.lower().strip()
+    # Replace " at " with "@" (with spaces to avoid matching "at" inside words)
+    fixed = fixed.replace(" at ", "@")
+    fixed = fixed.replace("(at)", "@")
+    # Replace " dot " with "." (before removing spaces)
+    fixed = fixed.replace(" dot ", ".")
+    fixed = fixed.replace("(dot)", ".")
+    # Remove remaining spaces
+    fixed = fixed.replace(" ", "")
+    # Clean up double dots, trailing dots, leading @
+    while ".." in fixed:
+        fixed = fixed.replace("..", ".")
+    fixed = fixed.strip(".@")
+    return fixed
+
+
 # Request / Response schemas
 
 class Message(BaseModel):
@@ -37,7 +75,7 @@ class ToolCallSchema(BaseModel):
     arguments: Dict[str, Any] = Field(default_factory=dict)
 
 class LLMOutputSchema(BaseModel):
-    thought_process: str
+    thought_process: str = ""
     response: str
     tool_call: Optional[ToolCallSchema] = None
 
@@ -128,7 +166,7 @@ async def chat(request: ChatRequest):
 
         while True:
             try:
-                response_text = await generate(messages)
+                response_text = await generate(messages, channel=request.channel)
             except Exception as e:
                 logger.error("[routes] LLM generation failed: %s\n%s", e, traceback.format_exc())
                 raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
@@ -264,8 +302,8 @@ async def chat(request: ChatRequest):
                     args = tool_call.get("arguments", {})
                     date = args.get("date", "")
                     booking_time = args.get("time", "")
-                    email = args.get("email", "")
-                    name = args.get("name", "")
+                    email = normalize_email(args.get("email", ""))
+                    name = args.get("name", "").strip()
 
                     if not all([date, booking_time, email, name]):
                         missing = []

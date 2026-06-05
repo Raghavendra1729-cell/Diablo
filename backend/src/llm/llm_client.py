@@ -13,7 +13,9 @@ from src.config import (
     LLM_BASE_URL,
     LLM_MODEL,
     LLM_MAX_TOKENS,
+    LLM_MAX_TOKENS_VOICE,
     LLM_TEMPERATURE,
+    LLM_TEMPERATURE_VOICE,
     LLM_TOP_P,
     HF_TOKEN,
 )
@@ -41,26 +43,34 @@ def get_client() -> OpenAI:
     return _client
 
 
-async def generate(messages: list[dict], max_retries: int = 2) -> str:
+async def generate(messages: list[dict], max_retries: int = 2, channel: str = "web") -> str:
     """Send messages to LLM, return response text. Async with retry logic.
 
     The blocking OpenAI HTTP call is offloaded to a threadpool thread via
     ``run_in_threadpool``. Retry waits use ``asyncio.sleep`` so the event
     loop stays free for other requests during backoff.
+
+    Voice channel uses tighter max_tokens (150) and slightly higher temperature
+    for natural-sounding short responses.
     """
+    max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
+    temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
+
     last_exc = None
     for attempt in range(max_retries + 1):
         try:
             client = get_client()
+            create_kwargs: dict = {
+                "model": LLM_MODEL,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "top_p": LLM_TOP_P,
+                "response_format": {"type": "json_object"},
+            }
+
             response = await run_in_threadpool(
-                lambda: client.chat.completions.create(
-                    model=LLM_MODEL,
-                    messages=messages,
-                    max_tokens=LLM_MAX_TOKENS,
-                    temperature=LLM_TEMPERATURE,
-                    top_p=LLM_TOP_P,
-                    response_format={"type": "json_object"},
-                )
+                lambda: client.chat.completions.create(**create_kwargs)
             )
             content = response.choices[0].message.content
             return (content or "").strip()
