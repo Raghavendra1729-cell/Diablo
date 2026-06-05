@@ -110,6 +110,33 @@ _CODE_INTENT = re.compile(
 )
 
 
+# Known repo names (from REPO_REGISTRY) for auto-detection in queries
+# Cached at module load — ingestion registry doesn't change at runtime
+try:
+    from src.ingestion.loader import REPO_REGISTRY as _REG
+    _KNOWN_REPOS: set[str] = set()
+    for _entry in _REG:
+        if "url" in _entry:
+            _KNOWN_REPOS.add(_entry["url"].rstrip("/").split("/")[-1].removesuffix(".git"))
+        elif "local" in _entry:
+            _KNOWN_REPOS.add(_entry["local"].split("/")[-1])
+    # Also add lowercase variants
+    _KNOWN_REPOS_LOWER = {r.lower(): r for r in _KNOWN_REPOS}
+except Exception:
+    _KNOWN_REPOS = set()
+    _KNOWN_REPOS_LOWER = {}
+
+
+def _detect_repo_name(query: str) -> str | None:
+    """Detect if query mentions a known repo name. Returns the canonical casing."""
+    query_lower = query.lower()
+    for lower_name, canonical in _KNOWN_REPOS_LOWER.items():
+        # Match exact word or hyphenated name
+        if lower_name.lower() in query_lower:
+            return canonical
+    return None
+
+
 # Internal helpers
 
 
@@ -234,18 +261,20 @@ def _retrieve_context_impl(
         try:
             # Use forced doc_type if provided, otherwise detect intent
             doc_filter = force_doc_type or _detect_intent(query)
+            # Auto-detect repo name from query (e.g. "show me SastaNotebookLM code")
+            detected_repo = repo_name or _detect_repo_name(query)
             fetch_k = effective_top_k * 2  # Fetch 2x for reranker
 
-            if doc_filter or repo_name:
+            if doc_filter or detected_repo:
                 logger.debug(
                     "[retriever] Filtered search: doc_type=%s repo_name=%s",
-                    doc_filter, repo_name,
+                    doc_filter, detected_repo,
                 )
                 hits = search_with_filter(
                     dense_vector,
                     sparse_vector,
                     doc_type=doc_filter,
-                    repo_name=repo_name,
+                    repo_name=detected_repo,
                     top_k=fetch_k,
                 )
             else:
@@ -256,7 +285,7 @@ def _retrieve_context_impl(
 
         # Fallback with raw query if no hits
         if not hits:
-            logger.info("[retriever] 0 hits for query '%.50s...'; retrying with raw query and no intent filter", query)
+            logger.info("[retriever] 0 hits for query '%.50s...'; retrying with raw query and no filters", query)
             try:
                 # Skip re-embedding if HyDE was not used — search_query == query for non-vague queries
                 if search_query != query:
@@ -265,7 +294,7 @@ def _retrieve_context_impl(
                 else:
                     fallback_dense = dense_vector
                     fallback_sparse = sparse_vector
-                # Drop the intent filter to broaden the search
+                # Drop ALL filters (intent + repo) to broaden the search
                 hits = search(fallback_dense, fallback_sparse, top_k=fetch_k)
             except Exception as e:
                 logger.error("[retriever] Fallback search failed: %s\n%s", e, traceback.format_exc())
@@ -275,6 +304,16 @@ def _retrieve_context_impl(
         if not hits:
             logger.info("[retriever] No chunks found for query: %.80s", query)
             return [NO_CONTEXT_SENTINEL]
+
+        # Step 3.5 — Filter out commit_history noise (11.4% of corpus, pollutes every search)
+        # Commit history chunks contain raw git log with thousands of file paths that
+        # match random keywords. Exclude them unless query explicitly asks for commits.
+        _COMMIT_QUERY = re.compile(r"(commit|git log|git history|changelog|what changed)", re.IGNORECASE)
+        if not _COMMIT_QUERY.search(query):
+            non_commit = [h for h in hits if "commit_history" not in h.get("source", "")]
+            if len(non_commit) >= 3:  # Keep commit_history only if we don't have enough other results
+                hits = non_commit
+                logger.debug("[retriever] Filtered out commit_history noise, kept %d chunks.", len(hits))
 
         # Step 4 — Cross-encoder reranking (DISABLED FOR SPEED on HuggingFace CPU)
 

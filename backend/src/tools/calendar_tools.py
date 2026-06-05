@@ -347,10 +347,16 @@ async def book_slot(
 # Tool 3: cancel_booking
 
 async def cancel_booking(
-    booking_id: str,
+    booking_id: str = "",
     reason: str = "Cancelled via AI assistant",
     **kwargs
 ) -> ToolResult:
+    if not booking_id:
+        return ToolResult(
+            success=False,
+            error="missing_id",
+            message="Please provide a valid booking_id to cancel the meeting."
+        )
     """Cancel an existing Cal.com booking.
 
     Args:
@@ -411,13 +417,19 @@ async def cancel_booking(
 # Tool 4: reschedule_booking
 
 async def reschedule_booking(
-    booking_id: str,
-    new_date: str,
-    new_time_slot: str,
+    booking_id: str = "",
+    new_date: str = "",
+    new_time_slot: str = "",
     timezone: str = "Asia/Kolkata",
     reason: str = "Rescheduled via AI assistant",
     **kwargs
 ) -> ToolResult:
+    if not booking_id or not new_date or not new_time_slot:
+        return ToolResult(
+            success=False,
+            error="missing_args",
+            message="Please provide a valid booking_id, new_date, and new_time_slot to reschedule."
+        )
     """Reschedule an existing Cal.com booking to a new date/time.
 
     Args:
