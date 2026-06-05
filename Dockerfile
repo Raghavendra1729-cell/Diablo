@@ -32,6 +32,8 @@ COPY --chown=user:user backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download embedding models safely to avoid cold starts
+# Set cache path inside /home/user/app so it persists and doesn't get wiped from /tmp
+ENV FASTEMBED_CACHE_PATH=/home/user/app/models
 COPY --chown=user:user backend/scripts/pre_download.py /home/user/app/pre_download.py
 RUN python /home/user/app/pre_download.py
 

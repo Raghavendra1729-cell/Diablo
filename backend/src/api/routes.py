@@ -27,7 +27,8 @@ from src.tools.tool_executor import execute_tool
 from src.tools.calendar_tools import check_availability
 from src.retrieval.retriever import retrieve_context
 from src.prompts.prompt_templates import build_system_prompt, build_messages
-from src.llm.llm_client import generate
+from src.llm.llm_client import generate, get_client
+from src.config import LLM_MODEL
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,8 +66,25 @@ class ChatResponse(BaseModel):
     booking_details: Optional[Dict[str, Any]] = None
 
 @router.get("/health")
-def health_check():
-    """Simple health check endpoint for uptime monitoring."""
+async def health_check(ping_llm: bool = False):
+    """Simple health check endpoint for uptime monitoring.
+    If ping_llm is True, sends a dummy token to the LLM to prevent cold starts on Serverless HF endpoints.
+    """
+    if ping_llm:
+        try:
+            # Send a fast 1-token request to keep the model loaded in VRAM
+            client = get_client()
+            await run_in_threadpool(
+                lambda: client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=1
+                )
+            )
+        except Exception as e:
+            logger.warning("[health] LLM ping failed: %s", e)
+            return {"status": "degraded", "message": "Backend running but LLM ping failed."}
+            
     return {"status": "ok", "message": "Backend is running flawlessly"}
 
 # ---------------------------------------------------------------------------
