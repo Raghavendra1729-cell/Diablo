@@ -2,13 +2,9 @@ import { useState, useRef, useEffect, useCallback, memo, useLayoutEffect } from 
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Bot, User, ChevronDown, Copy, Check, Sparkles } from 'lucide-react';
+import { Copy, Check, ArrowRight } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
-
-/* ─── Hooks ─── */
-
-// useCopy removed - handled locally in MessageBubble for better performance
 
 function useAutoResize(ref, value) {
   useLayoutEffect(() => {
@@ -19,105 +15,73 @@ function useAutoResize(ref, value) {
   }, [value, ref]);
 }
 
-/* ─── Sub-components ─── */
-
-function StatusDot() {
+function StatusText() {
   return (
-    <span className="relative inline-flex w-[10px] h-[10px] align-middle">
-      <span className="status-ring bg-success/30" style={{ animationDelay: '0s' }} />
-      <span className="status-ring bg-success/20" style={{ animationDelay: '0.8s' }} />
-      <span className="relative w-[10px] h-[10px] rounded-full bg-success shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-    </span>
+    <div className="flex items-center gap-2 text-[10px] tracking-widest uppercase font-semibold text-accent">
+      <span className="w-1.5 h-1.5 bg-accent rounded-none shadow-[0_0_8px_rgba(205,160,119,0.5)]"></span>
+      Online
+    </div>
   );
 }
 
 function TypingIndicator() {
   return (
-    <div className="flex items-start gap-3 animate-message-in" role="status" aria-label="Assistant is typing">
-      <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-md avatar-pulse">
-        <Bot className="w-[15px] h-[15px] text-white" />
-      </div>
-      <div className="glass rounded-[20px] rounded-tl-sm px-5 py-3.5 flex items-center gap-3 shadow-md">
-        <span className="text-[11px] font-bold text-secondary tracking-widest uppercase drop-shadow-sm">Thinking</span>
-        <div className="flex items-center gap-1.5 h-3">
-          <div className="typing-dot" style={{ animationDelay: '0ms' }} />
-          <div className="typing-dot" style={{ animationDelay: '150ms' }} />
-          <div className="typing-dot" style={{ animationDelay: '300ms' }} />
-        </div>
+    <div className="flex flex-col gap-1 animate-message-in px-4 sm:px-6 mt-6" role="status" aria-label="Assistant is typing">
+      <span className="text-[10px] uppercase tracking-[0.2em] font-display font-semibold text-accent mb-2">Diablo</span>
+      <div className="flex items-center gap-2 h-4">
+        <div className="typing-dot" style={{ animationDelay: '0ms' }} />
+        <div className="typing-dot" style={{ animationDelay: '200ms' }} />
+        <div className="typing-dot" style={{ animationDelay: '400ms' }} />
       </div>
     </div>
   );
 }
 
 function SuggestionChip({ text, onClick }) {
-  return <button type="button" onClick={onClick} className="suggestion-chip truncate focus:outline-none focus:ring-2 focus:ring-accent/50" title={text}>{text}</button>;
+  return <button type="button" onClick={onClick} className="suggestion-chip" title={text}>{text}</button>;
 }
-
-
 
 function BookingReceipt({ id, date, time, email, meet_url, onAction, disabled }) {
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl glass shadow-lg shadow-black/20 animate-pop-in">
-      <div className="bg-gradient-to-r from-success/90 to-success text-white px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-sm">
-          <Check className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h3 className="text-[13px] font-bold tracking-wide uppercase">Booking Confirmed</h3>
-          <p className="text-[11px] text-white/90 font-medium tracking-wider">ID: {id}</p>
-        </div>
+    <div className="mt-8 border border-border bg-surface p-6 sm:p-8 animate-fade-in rounded-none">
+      <div className="border-b border-border pb-5 mb-6">
+        <h3 className="text-sm font-display font-semibold tracking-wider uppercase text-accent">Booking Confirmed</h3>
+        <p className="text-xs text-secondary mt-2">Ref: {id}</p>
       </div>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center gap-3 text-sm w-full">
-          <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-            <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-            </svg>
-          </div>
-          <span className="text-primary/90 font-medium flex-1 min-w-0">{date}</span>
+      <div className="space-y-5 text-sm font-light">
+        <div className="flex items-center justify-between">
+          <span className="text-secondary uppercase text-[10px] tracking-widest font-semibold">Date</span>
+          <span className="text-primary">{date}</span>
         </div>
-        <div className="flex items-center gap-3 text-sm w-full">
-          <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-            <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <span className="text-primary/90 font-medium flex-1 min-w-0">{time}</span>
+        <div className="flex items-center justify-between">
+          <span className="text-secondary uppercase text-[10px] tracking-widest font-semibold">Time</span>
+          <span className="text-primary">{time}</span>
         </div>
-        <div className="flex items-center gap-3 text-sm w-full">
-          <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-            <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-            </svg>
-          </div>
-          <span className="text-primary/90 font-medium break-all flex-1 min-w-0">{email}</span>
+        <div className="flex items-center justify-between">
+          <span className="text-secondary uppercase text-[10px] tracking-widest font-semibold">Email</span>
+          <span className="text-primary">{email}</span>
         </div>
         {meet_url && (
-          <div className="flex items-center gap-3 text-sm pt-2 border-t border-border/50 mt-3 w-full">
-             <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-               <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-               </svg>
-             </div>
-             <a href={meet_url} target="_blank" rel="noopener noreferrer" aria-label="Join Meeting (opens in a new tab)" className="text-accent hover:text-accent2 font-semibold underline decoration-2 underline-offset-2 transition-colors break-all focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-sm">
-               Join Meeting
+          <div className="pt-5 border-t border-border flex justify-end">
+             <a href={meet_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-primary transition-colors text-[11px] tracking-widest uppercase font-semibold flex items-center gap-2">
+               Join Meeting <ArrowRight className="w-3 h-3" />
              </a>
           </div>
         )}
-        <div className="flex gap-3 pt-3 border-t border-border/50 mt-3 w-full">
+        <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-border mt-2">
           <button 
             type="button"
             disabled={disabled}
             onClick={() => onAction && onAction(`Cancel my meeting for ${date} at ${time}.`)} 
-            className="flex-1 py-2 text-xs font-bold text-danger border border-danger/30 rounded-xl hover:bg-danger/10 transition-colors focus:outline-none focus:ring-2 focus:ring-danger/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 text-[11px] tracking-widest uppercase font-semibold text-secondary hover:text-primary border border-border hover:border-primary transition-all disabled:opacity-50 rounded-none cursor-pointer"
           >
-            Cancel Meeting
+            Cancel
           </button>
           <button 
             type="button"
             disabled={disabled}
             onClick={() => onAction && onAction(`Reschedule my meeting on ${date} at ${time}.`)} 
-            className="flex-1 py-2 text-xs font-bold text-accent border border-accent/30 rounded-xl hover:bg-accent/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 text-[11px] tracking-widest uppercase font-semibold text-base bg-accent hover:bg-primary transition-all disabled:opacity-50 rounded-none cursor-pointer"
           >
             Reschedule
           </button>
@@ -141,22 +105,21 @@ function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
   };
 
   return (
-    <div className="mt-4 p-5 glass rounded-2xl shadow-lg shadow-black/20">
-      <h3 className="text-[13px] font-bold text-accent uppercase tracking-wider mb-3">Schedule Meeting for {date}</h3>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div role="group" aria-labelledby={`booking-time-label-${date}`}>
-          <div id={`booking-time-label-${date}`} className="text-xs font-semibold text-secondary mb-1.5 block">Select a Time</div>
-          <div className="flex flex-wrap gap-2">
+    <div className="mt-8 border border-border bg-surface p-6 sm:p-8">
+      <h3 className="text-sm font-display font-semibold tracking-[0.15em] uppercase text-accent mb-6 border-b border-border pb-4">Schedule for {date}</h3>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div>
+          <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-4 block">Select Time</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {slots.map(slot => (
               <button
                 key={slot}
                 type="button"
-                aria-pressed={selectedSlot === slot}
                 onClick={() => setSelectedSlot(slot)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
+                className={`py-3 text-xs font-medium border transition-all rounded-none cursor-pointer ${
                   selectedSlot === slot 
-                    ? 'bg-accent text-white shadow-md' 
-                    : 'bg-elevated text-primary border border-border hover:border-accent/50'
+                    ? 'border-accent bg-accent text-base' 
+                    : 'border-border text-primary hover:border-accent'
                 }`}
               >
                 {slot}
@@ -166,33 +129,28 @@ function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
         </div>
         
         {selectedSlot && (
-          <div className="space-y-2 pt-2 animate-slide-up">
-            <input 
-              type="text" 
-              required 
-              placeholder="Your Full Name" 
-              aria-label="Your Full Name"
-              className="w-full px-3 py-2 text-sm bg-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              disabled={disabled}
-            />
-            <input 
-              type="email" 
-              required 
-              placeholder="Your Email Address" 
-              aria-label="Your Email Address"
-              className="w-full px-3 py-2 text-sm bg-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={disabled}
-            />
+          <div className="space-y-6 pt-6 border-t border-border animate-slide-up">
+            <div>
+              <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-2 block">Name</span>
+              <input 
+                type="text" required placeholder="John Doe" 
+                className="w-full bg-transparent border-b border-border py-2 text-sm focus:outline-none focus:border-accent transition-colors text-primary placeholder-border rounded-none"
+                value={name} onChange={e => setName(e.target.value)} disabled={disabled}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-2 block">Email Address</span>
+              <input 
+                type="email" required placeholder="john@example.com" 
+                className="w-full bg-transparent border-b border-border py-2 text-sm focus:outline-none focus:border-accent transition-colors text-primary placeholder-border rounded-none"
+                value={email} onChange={e => setEmail(e.target.value)} disabled={disabled}
+              />
+            </div>
             <button 
-              type="submit"
-              disabled={disabled}
-              className="w-full mt-2 bg-gradient-to-r from-accent to-accent2 text-white font-semibold py-2 rounded-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              type="submit" disabled={disabled}
+              className="w-full mt-6 bg-primary text-base tracking-[0.2em] uppercase font-semibold text-[11px] py-4 hover:bg-accent hover:text-base transition-colors disabled:opacity-50 rounded-none cursor-pointer"
             >
-              Confirm Meeting
+              Confirm Appointment
             </button>
           </div>
         )}
@@ -212,30 +170,22 @@ function CalendarWidget({ onConfirm, disabled }) {
 
   const fetchSlots = async (selectedDate) => {
     if (!selectedDate) {
-      setSlots([]);
-      setSelectedSlot('');
-      setError('');
-      return;
+      setSlots([]); setSelectedSlot(''); setError(''); return;
     }
-    setLoading(true);
-    setError('');
-    setSlots([]);
-    setSelectedSlot('');
+    setLoading(true); setError(''); setSlots([]); setSelectedSlot('');
     try {
       const res = await axios.get(`${API_URL}/v1/calendar/slots?date=${selectedDate}`);
       setSlots(res.data.slots || []);
     } catch (err) {
       const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Failed to fetch slots.');
+      setError(typeof detail === 'string' ? detail : 'Failed to fetch availability.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDateChange = (e) => {
-    const d = e.target.value;
-    setDate(d);
-    fetchSlots(d);
+    const d = e.target.value; setDate(d); fetchSlots(d);
   };
 
   const handleSubmit = (e) => {
@@ -249,45 +199,32 @@ function CalendarWidget({ onConfirm, disabled }) {
   const localToday = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
   return (
-    <div className="mt-4 p-5 glass rounded-2xl shadow-lg shadow-black/20">
-      <h3 className="text-[13px] font-bold text-accent uppercase tracking-wider mb-3">Schedule a Meeting</h3>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="mt-8 border border-border bg-surface p-6 sm:p-8">
+      <h3 className="text-sm font-display font-semibold tracking-[0.15em] uppercase text-accent mb-6 border-b border-border pb-4">Schedule Meeting</h3>
+      <form onSubmit={handleSubmit} className="space-y-8">
         <div>
-          <label htmlFor="calendar-date" className="text-xs font-semibold text-secondary mb-1.5 block">Select a Date</label>
+          <label htmlFor="calendar-date" className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-3 block">Select Date</label>
           <input 
-            id="calendar-date"
-            type="date" 
-            required 
-            min={localToday}
-            disabled={disabled}
-            className="w-full px-3 py-2 text-sm bg-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
-            value={date}
-            onChange={handleDateChange}
+            id="calendar-date" type="date" required min={localToday} disabled={disabled}
+            className="w-full bg-transparent border-b border-border py-2 text-sm focus:outline-none focus:border-accent transition-colors text-primary rounded-none"
+            value={date} onChange={handleDateChange}
+            style={{ colorScheme: 'dark' }}
           />
         </div>
 
-        {loading && <p className="text-xs font-medium text-secondary animate-pulse" role="status">Loading available slots...</p>}
-        {error && <p className="text-xs font-medium text-red-500" role="alert">{error}</p>}
-        
-        {date && !loading && !error && slots.length === 0 && (
-          <p className="text-xs font-medium text-secondary" role="status">No slots available on this date.</p>
-        )}
+        {loading && <p className="text-[11px] tracking-widest uppercase font-semibold text-accent italic">Retrieving Slots...</p>}
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        {date && !loading && !error && slots.length === 0 && <p className="text-xs text-secondary italic">No availability.</p>}
 
         {date && slots.length > 0 && (
-          <div className="animate-slide-up" role="group" aria-labelledby="calendar-time-label">
-            <div id="calendar-time-label" className="text-xs font-semibold text-secondary mb-1.5 block">Select a Time</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="animate-slide-up">
+            <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-4 block">Select Time</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {slots.map(slot => (
                 <button
-                  key={slot}
-                  type="button"
-                  aria-pressed={selectedSlot === slot}
-                  onClick={() => setSelectedSlot(slot)}
-                  disabled={disabled}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
-                    selectedSlot === slot 
-                      ? 'bg-accent text-white shadow-md' 
-                      : 'bg-elevated text-primary border border-border hover:border-accent/50'
+                  key={slot} type="button" onClick={() => setSelectedSlot(slot)} disabled={disabled}
+                  className={`py-3 text-xs font-medium border transition-all rounded-none cursor-pointer ${
+                    selectedSlot === slot ? 'border-accent bg-accent text-base' : 'border-border text-primary hover:border-accent'
                   }`}
                 >
                   {slot}
@@ -298,33 +235,28 @@ function CalendarWidget({ onConfirm, disabled }) {
         )}
         
         {selectedSlot && (
-          <div className="space-y-2 pt-2 animate-slide-up border-t border-border/50 mt-3">
-            <input 
-              type="text" 
-              required 
-              placeholder="Your Full Name" 
-              aria-label="Your Full Name"
-              disabled={disabled}
-              className="w-full px-3 py-2 text-sm bg-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-            <input 
-              type="email" 
-              required 
-              placeholder="Your Email Address" 
-              aria-label="Your Email Address"
-              disabled={disabled}
-              className="w-full px-3 py-2 text-sm bg-elevated border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
+          <div className="space-y-6 pt-6 border-t border-border animate-slide-up">
+            <div>
+              <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-2 block">Name</span>
+              <input 
+                type="text" required placeholder="Your Name" disabled={disabled}
+                className="w-full bg-transparent border-b border-border py-2 text-sm focus:outline-none focus:border-accent transition-colors text-primary placeholder-border rounded-none"
+                value={name} onChange={e => setName(e.target.value)}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-widest font-semibold text-secondary mb-2 block">Email Address</span>
+              <input 
+                type="email" required placeholder="your@email.com" disabled={disabled}
+                className="w-full bg-transparent border-b border-border py-2 text-sm focus:outline-none focus:border-accent transition-colors text-primary placeholder-border rounded-none"
+                value={email} onChange={e => setEmail(e.target.value)}
+              />
+            </div>
             <button 
-              type="submit"
-              disabled={disabled || loading}
-              className="w-full mt-2 bg-gradient-to-r from-accent to-accent2 text-white font-semibold py-2 rounded-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              type="submit" disabled={disabled || loading}
+              className="w-full mt-6 bg-primary text-base tracking-[0.2em] uppercase font-semibold text-[11px] py-4 hover:bg-accent hover:text-base transition-colors disabled:opacity-50 rounded-none cursor-pointer"
             >
-              Confirm Meeting
+              Confirm Appointment
             </button>
           </div>
         )}
@@ -342,15 +274,10 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
   const copyTimeout = useRef(null);
   
   useEffect(() => {
-    return () => {
-      if (copyTimeout.current) clearTimeout(copyTimeout.current);
-    };
+    return () => { if (copyTimeout.current) clearTimeout(copyTimeout.current); };
   }, []);
 
-  // Safely get content string
   const contentStr = typeof msg.content === 'string' ? msg.content : '';
-
-  // Extract Booking Widget or Calendar Widget tag if present
   const match = !isUser ? contentStr.match(widgetRegex) : null;
   const calendarMatch = !isUser ? contentStr.match(calendarWidgetRegex) : null;
   
@@ -369,51 +296,35 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
       handleSuccess();
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = contentWithoutWidget;
-      ta.style.cssText = 'position:fixed;opacity:0;';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      handleSuccess();
+      ta.value = contentWithoutWidget; ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta); handleSuccess();
     }
   }, [contentWithoutWidget]);
 
   return (
-    <div className={`flex items-start gap-3 group animate-message-in ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center shadow-sm ${
-        isUser
-          ? 'bg-elevated border border-border/50'
-          : 'bg-gradient-to-br from-accent to-accent2 avatar-pulse'
-      }`}>
-        {isUser
-          ? <User className="w-[15px] h-[15px] text-secondary/70" aria-label="User" />
-          : <Bot className="w-[15px] h-[15px] text-white" aria-label="Diablo" />
-        }
-      </div>
+    <div className={`group animate-message-in px-4 sm:px-6 w-full ${isUser ? 'py-10 bg-surface border-y border-border' : 'py-10'}`}>
+      <div className={`max-w-4xl mx-auto flex flex-col ${isUser ? 'items-end text-right' : 'items-start text-left'}`}>
+        
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          {isUser ? (
+             <span className="text-[10px] uppercase tracking-widest font-bold text-secondary">Inquiry</span>
+          ) : (
+             <span className="text-[10px] uppercase tracking-[0.2em] font-display font-semibold text-accent">Diablo</span>
+          )}
+        </div>
 
-      {/* Content */}
-      <div className={`max-w-[82%] sm:max-w-[72%] flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1 min-w-0`}>
-        {/* Bubble */}
-        <div className={`${
-          isUser
-            ? 'bg-gradient-to-br from-accent to-accent2 text-white rounded-[24px] rounded-tr-[4px] shadow-lg shadow-accent/20'
-            : 'glass rounded-[24px] rounded-bl-[4px] shadow-md'
-        } px-6 py-4.5 overflow-x-auto break-words min-w-0 max-w-full relative group/bubble transition-transform hover:-translate-y-0.5`}>
-          <div className={`text-[15px] leading-relaxed ${
-            isUser ? 'text-white' : 'chat-prose'
-          }`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentWithoutWidget}</ReactMarkdown>
-          </div>
+        {/* Content */}
+        <div className={`w-full max-w-3xl ${isUser ? 'text-primary' : 'chat-prose'}`}>
+          {isUser ? (
+             <div className="text-xl font-light leading-relaxed tracking-wide">{contentWithoutWidget}</div>
+          ) : (
+             <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentWithoutWidget}</ReactMarkdown>
+          )}
           
           {match && !isUser && (
-             <BookingWidget 
-               date={match[1]} 
-               slotsStr={match[2]} 
-               onConfirm={onSendMessage} 
-               disabled={isDisabled}
-             />
+             <BookingWidget date={match[1]} slotsStr={match[2]} onConfirm={onSendMessage} disabled={isDisabled} />
           )}
 
           {calendarMatch && !isUser && (
@@ -422,35 +333,26 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
 
           {msg.booking_confirmed && msg.booking_details && (
              <BookingReceipt 
-               id={msg.booking_details.booking_id}
-               date={msg.booking_details.date}
-               time={msg.booking_details.time}
-               email={msg.booking_details.email}
-               meet_url={msg.booking_details.meet_url}
-               onAction={onSendMessage}
-               disabled={isDisabled}
+               id={msg.booking_details.booking_id} date={msg.booking_details.date} time={msg.booking_details.time}
+               email={msg.booking_details.email} meet_url={msg.booking_details.meet_url}
+               onAction={onSendMessage} disabled={isDisabled}
              />
           )}
         </div>
 
-        {/* Meta row */}
-        <div className={`flex items-center gap-2 px-1 opacity-100 sm:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 ${isUser ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] text-secondary/40 select-none font-medium uppercase tracking-wide" aria-hidden="true">just now</span>
-          {!isUser && (
+        {/* Actions */}
+        {!isUser && (
+          <div className="mt-6 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <button
-              type="button"
-              onClick={handleCopy}
-              className="text-secondary/40 hover:text-accent focus:outline-none focus:text-accent transition-all hover:scale-110 active:scale-90"
+              type="button" onClick={handleCopy}
+              className="text-[10px] uppercase tracking-widest font-semibold text-secondary hover:text-accent transition-colors flex items-center gap-2 cursor-pointer"
               title="Copy"
-              aria-label="Copy message"
             >
-              {isCopied
-                ? <Check className="w-[12px] h-[12px]" />
-                : <Copy className="w-[12px] h-[12px]" />
-              }
+              {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {isCopied ? 'Copied' : 'Copy'}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -458,32 +360,15 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
 
 function EmptyState({ suggestions, onSelect }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 relative z-10 mt-10">
-      {/* Avatar */}
-      <div className="relative mb-10 avatar-float group cursor-default">
-        <div className="absolute inset-0 bg-accent/20 rounded-[2.5rem] blur-2xl group-hover:bg-accent/40 transition-colors duration-500"></div>
-        <div className="w-28 h-28 rounded-[2.5rem] glass-elevated flex items-center justify-center relative z-10 border border-white/20">
-          <div className="w-20 h-20 rounded-[1.8rem] bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[inset_0_0_20px_rgba(255,255,255,0.3)] group-hover:scale-105 transition-transform duration-500">
-             <Bot className="w-10 h-10 text-white drop-shadow-md" />
-          </div>
-        </div>
-        <div className="absolute -top-2 -right-2 z-20">
-          <StatusDot />
-        </div>
-      </div>
-
-      {/* Greeting */}
-      <h2 className="text-4xl sm:text-5xl font-display font-bold mb-5 tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-r from-white via-primary to-secondary drop-shadow-sm">
-        Hey there, I am <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-accent2">Diablo</span>
-      </h2>
-
-      <p className="text-lg text-secondary max-w-md leading-relaxed mb-12 animate-fade-in font-medium px-4">
-        I am Linga Seetha Rama Raghavendra's personal AI. Let me help you get
-        to know my master better — ask me about their background, skills,
-        experience, or book an interview.
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 mt-20 sm:mt-32">
+      <h1 className="text-6xl sm:text-8xl font-display italic text-primary mb-8 tracking-tight opacity-90">
+        Diablo.
+      </h1>
+      <p className="text-sm sm:text-base text-secondary max-w-xl leading-loose mb-16 font-light">
+        A personal intelligence interface for Linga Seetha Rama Raghavendra.<br/>
+        Inquire about his background, experience, or arrange a meeting.
       </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+      <div className="flex flex-wrap justify-center gap-4 max-w-3xl">
         {suggestions.map((text) => (
           <SuggestionChip key={text} text={text} onClick={() => onSelect(text)} />
         ))}
@@ -491,16 +376,6 @@ function EmptyState({ suggestions, onSelect }) {
     </div>
   );
 }
-
-/* ─── Edge Corner Glows ─── */
-
-function EdgeGlows() {
-  return (
-    <div className="bg-animated" aria-hidden="true" />
-  );
-}
-
-/* ─── App ─── */
 
 const SUGGESTIONS = [
   'Why hire Linga?',
@@ -513,7 +388,6 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const messagesEndRef = useRef(null);
   const chatRef = useRef(null);
@@ -525,14 +399,14 @@ export default function App() {
   useEffect(() => { loadingRef.current = loading; }, [loading]);
 
   useEffect(() => {
-    document.title = "Diablo | Premium AI Assistant";
+    document.title = "Diablo | Personal Intelligence";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute("content", "Chat with Diablo, the state-of-the-art personal AI assistant of Linga Seetha Rama Raghavendra. Experience modern UI and dynamic interactions.");
+      metaDesc.setAttribute("content", "Personal intelligence interface for Linga Seetha Rama Raghavendra.");
     } else {
       const meta = document.createElement('meta');
       meta.name = "description";
-      meta.content = "Chat with Diablo, the state-of-the-art personal AI assistant of Linga Seetha Rama Raghavendra. Experience modern UI and dynamic interactions.";
+      meta.content = "Personal intelligence interface for Linga Seetha Rama Raghavendra.";
       document.head.appendChild(meta);
     }
   }, []);
@@ -545,15 +419,6 @@ export default function App() {
 
   useEffect(() => { scrollToBottom(); }, [messages, loading, scrollToBottom]);
 
-  useEffect(() => {
-    const el = chatRef.current;
-    if (!el) return;
-    const fn = () => setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 150);
-    fn();
-    el.addEventListener('scroll', fn, { passive: true });
-    return () => el.removeEventListener('scroll', fn);
-  }, []);
-
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
   const sendMessage = useCallback(async (text) => {
@@ -565,7 +430,7 @@ export default function App() {
     setLoading(true);
 
     if (userMsg.length > 2000) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Message too long. Please keep it under 2000 characters.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Message exceeds allowed length.' }]);
       setLoading(false);
       return;
     }
@@ -583,10 +448,10 @@ export default function App() {
       ]);
     } catch (err) {
       const rawDetail = err.response?.data?.detail;
-      const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : err.message || 'Unable to reach the server.');
+      const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : err.message || 'Server unreachable.');
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `**Connection error** — ${detail}\n\nMake sure the backend is running at \`${API_URL}\`.` },
+        { role: 'assistant', content: `**Error:** ${detail}` },
       ]);
     } finally {
       setLoading(false);
@@ -602,100 +467,69 @@ export default function App() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="h-[100dvh] flex flex-col text-primary overflow-hidden selection:bg-accent/20 selection:text-primary">
-
-      <EdgeGlows />
-
-      {/* ─── Header ─── */}
-      <header className="shrink-0 px-5 sm:px-6 py-4 header-glass z-20">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-md avatar-pulse">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <span className="absolute -bottom-[2px] -right-[2px]">
-                <StatusDot />
-              </span>
-            </div>
-            <div className="leading-tight">
-              <h1 className="text-[15px] font-bold tracking-tight text-primary">Diablo</h1>
-              <p className="text-[11px] text-secondary font-medium flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
-                At your service
-              </p>
-            </div>
-          </div>
-          <div className="text-secondary/60 text-[11px] uppercase tracking-widest font-semibold flex items-center bg-surface px-3 py-1.5 rounded-full border border-border shadow-sm backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 inline-block align-middle mr-1.5 text-accent" />
-            <span className="hidden sm:inline align-middle">Butler &bull; Personal AI</span>
-          </div>
+    <div className="h-[100dvh] flex flex-col bg-base text-primary overflow-hidden">
+      {/* Header */}
+      <header className="shrink-0 border-b border-border bg-base z-20">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+          <h1 className="text-2xl font-display font-semibold tracking-wide italic text-primary">Diablo.</h1>
+          <StatusText />
         </div>
       </header>
 
-      {/* ─── Chat ─── */}
-      <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-full flex flex-col relative">
+      {/* Chat Area */}
+      <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10 w-full relative">
+        <div className="min-h-full flex flex-col">
           {!hasMessages && !loading && (
             <EmptyState suggestions={SUGGESTIONS} onSelect={sendMessage} />
           )}
 
-          <div role="log" aria-live="polite" aria-atomic="false" className={`w-full ${hasMessages ? 'space-y-6 pb-2' : (loading ? 'flex-1 flex items-center justify-center' : 'hidden')}`}>
+          <div role="log" aria-live="polite" className={`w-full ${hasMessages ? 'pb-12' : (loading ? 'flex-1 flex flex-col justify-end pb-12' : 'hidden')}`}>
             {messages.map((msg, idx) => (
               <MessageBubble key={`${idx}-${msg.role}`} msg={msg} idx={idx} onSendMessage={sendMessage} isDisabled={idx !== messages.length - 1 || loading} />
             ))}
-            {loading && <TypingIndicator />}
+            {loading && (
+              <div className="max-w-4xl mx-auto w-full">
+                <TypingIndicator />
+              </div>
+            )}
           </div>
 
           <div ref={messagesEndRef} />
         </div>
       </main>
 
-      {/* ─── Scroll FAB ─── */}
-      {showScrollBtn && (
-        <button
-          type="button"
-          onClick={() => scrollToBottom()}
-          className="fab fixed bottom-28 right-6 sm:right-8 w-11 h-11 flex items-center justify-center z-20 rounded-full focus:outline-none focus:ring-2 focus:ring-accent/50"
-          aria-label="Scroll to bottom"
-        >
-          <ChevronDown className="w-5 h-5" />
-        </button>
-      )}
-
-      {/* ─── Input ─── */}
-      <footer className="shrink-0 px-4 sm:px-6 pb-6 pt-4 z-20">
+      {/* Input Area */}
+      <footer className="shrink-0 px-4 sm:px-6 pb-8 pt-6 bg-base border-t border-border z-20">
         <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSubmit}>
-            <div className="flex items-end gap-3 input-wrap px-5 py-3.5 transition-all">
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="input-wrap flex items-end p-2 pl-6">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me anything about my master..."
-                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-[15px] text-primary placeholder-secondary/50 scrollbar-none leading-relaxed font-medium min-w-0"
+                placeholder="Inquire..."
+                className="flex-1 max-h-40 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-4 text-[15px] text-primary placeholder-secondary font-light scrollbar-none"
                 rows={1}
                 disabled={loading}
-                aria-label="Message input"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="btn-send disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-accent/50 w-11 h-11 flex items-center justify-center"
-                aria-label="Send Message"
+                className="btn-send w-14 h-14 flex items-center justify-center shrink-0 disabled:opacity-20 disabled:cursor-not-allowed ml-4"
+                aria-label="Send"
               >
-                <Send className="w-5 h-5 translate-x-px translate-y-px drop-shadow-md" />
+                <ArrowRight className="w-5 h-5 text-base" />
               </button>
             </div>
-            <p className="text-center mt-3 text-[10px] text-secondary/40 uppercase tracking-widest font-semibold select-none flex items-center justify-center gap-2">
-              <span className="w-4 h-[1px] bg-secondary/20"></span>
-              Diablo &mdash; at your service
-              <span className="w-4 h-[1px] bg-secondary/20"></span>
-            </p>
+            <div className="mt-4 flex justify-between items-center px-2">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-secondary font-medium">Intelligence Engine</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-secondary font-medium">Strictly Confidential</span>
+            </div>
           </form>
         </div>
       </footer>
     </div>
   );
 }
+
