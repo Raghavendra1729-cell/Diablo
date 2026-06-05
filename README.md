@@ -1,12 +1,12 @@
-  ---                                                                                             
-    title: Diablo AI Agent                                                                          
-    emoji: 🦀                                                                                       
-    colorFrom: purple                                                                               
-    colorTo: blue                                                                                   
-    sdk: docker                                                                                     
-    app_port: 7860
-    pinned: false
-    ---
+---
+title: Diablo AI Agent
+emoji: 🦀
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
 # 🤖 Diablo - Autonomous Personal AI Agent
 

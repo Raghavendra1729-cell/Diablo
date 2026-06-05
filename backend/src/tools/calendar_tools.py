@@ -349,6 +349,7 @@ async def book_slot(
 async def cancel_booking(
     booking_id: str,
     reason: str = "Cancelled via AI assistant",
+    **kwargs
 ) -> ToolResult:
     """Cancel an existing Cal.com booking.
 
@@ -415,6 +416,7 @@ async def reschedule_booking(
     new_time_slot: str,
     timezone: str = "Asia/Kolkata",
     reason: str = "Rescheduled via AI assistant",
+    **kwargs
 ) -> ToolResult:
     """Reschedule an existing Cal.com booking to a new date/time.
 
