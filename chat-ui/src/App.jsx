@@ -473,7 +473,7 @@ function EmptyState({ suggestions, onSelect }) {
       </div>
 
       {/* Greeting */}
-      <h2 className="text-4xl sm:text-5xl font-display font-bold mb-5 tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-r from-white via-primary to-secondary drop-shadow-sm">
+      <h2 className="text-4xl sm:text-5xl font-display font-bold mb-5 tracking-tight leading-snug text-primary drop-shadow-sm">
         Hey there, I am <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-accent2">Diablo</span>
       </h2>
 
