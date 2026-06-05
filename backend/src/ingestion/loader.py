@@ -27,7 +27,7 @@ logging.basicConfig(
 
 # Clone & Filter strategy
 
-WHITELIST_EXTENSIONS = {".py", ".js", ".ts", ".md", ".json", ".txt", ".yaml", ".yml", ".toml"}
+WHITELIST_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".md", ".json", ".txt", ".yaml", ".yml", ".toml", ".html", ".css", ".java", ".cpp"}
 BLACKLIST_DIRS = {
     ".git", "node_modules", "venv", "__pycache__",
     "dist", "build", ".next", "target", "__MACOSX",

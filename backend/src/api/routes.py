@@ -399,6 +399,10 @@ async def vapi_chat_completions(req: dict):
         ai_text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', ai_text)
         ai_text = re.sub(r'#(.*?)\n', r'\1\n', ai_text)
         ai_text = ai_text.replace('`', '')
+        
+        # Strip UI widgets that might leak into Voice
+        ai_text = re.sub(r'\[BOOKING_WIDGET.*?\]', '', ai_text)
+        ai_text = re.sub(r'\[CALENDAR_WIDGET\]', '', ai_text)
 
         stream = req.get("stream", False)
         if stream:
