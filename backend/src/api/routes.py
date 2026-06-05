@@ -26,64 +26,97 @@ router = APIRouter()
 
 
 # ── Email normalization for STT transcription errors ──────────────────────────
+# Strategy: normalize eagerly before LLM sees the message. Never let the LLM
+# echo back raw STT-spelled text — it garbles it. Present clean email to user.
 
-def _is_spelled_out_email(raw: str) -> bool:
-    """Detect if email looks spelled-out (letter-by-letter, dashes, spaces between single chars).
+# Regex to find email-like spelled-out patterns in user messages.
+# Matches sequences like "S-E-E-T-A dot 24 BCS 10250 at SST dot scaler dot com"
+_EMAIL_PATTERN = re.compile(
+    r'(?:email\s+(?:is|address\s+(?:is|would\s+be))?\s*[:=-]?\s*)'
+    r'((?:[a-zA-Z0-9](?:[\s.-]*[a-zA-Z0-9])*\s*(?:dot|at|@)\s*)+'
+    r'(?:[a-zA-Z0-9](?:[\s.-]*[a-zA-Z0-9])*\s*(?:dot)\s*)+'
+    r'(?:com|org|net|edu|io|co|ai|dev|app|in))',
+    re.IGNORECASE,
+)
 
-    Examples of spelled-out patterns:
-      "S-E-E-T-A dot 24 B C S 1 0 2 5 0 at S S T dot scaler dot com"
-      "j o h n at g m a i l dot c o m"
-      "s a r a h dot c o n n o r at email dot com"
-    """
+# Simpler fallback: find runs of "word dot/at word" patterns
+_SPELLED_OUT_RUN = re.compile(
+    r'(?:^|\s)('
+    r'(?:[a-zA-Z0-9]+[\s-])+'
+    r'(?:dot|at)'
+    r'(?:[\s-][a-zA-Z0-9]+)+'
+    r'(?:\s(?:dot|at))'
+    r'(?:[\s-][a-zA-Z0-9]+)+'
+    r')',
+    re.IGNORECASE,
+)
+
+
+def _fast_normalize(raw: str) -> str | None:
+    """Fast algorithmic email normalization. Returns None if it can't figure it out."""
     if not raw or "@" in raw:
-        # If it has @ and looks reasonably clean, it's not spelled out
-        cleaned = raw.lower().replace(" ", "")
-        if len(cleaned) < 80 and cleaned.count("@") == 1:
-            return False
-    # Check for telltale signs of letter-by-letter spelling
-    # Pattern: dashes between single letters (S-E-E-T-A) or dots between single letters
-    single_letter_dashes = bool(re.search(r'\b[a-zA-Z]-[a-zA-Z]', raw))
-    # Pattern: many spaces separating individual characters
-    space_separated_chars = len(re.findall(r'\b[a-zA-Z0-9]\s+[a-zA-Z0-9]\b', raw)) >= 2
-    # Pattern: "dot" and "at" as words
-    has_word_dot_at = bool(re.search(r'\b(dot|at)\b', raw.lower()))
-    return single_letter_dashes or space_separated_chars or has_word_dot_at
+        return None  # Already has @, basic cleanup will handle
+
+    text = raw.lower().strip()
+    # Remove punctuation that STT inserts (periods after abbreviations, commas)
+    text = re.sub(r'[,\?;:!]', ' ', text)
+
+    # Replace " dot " variations → "."
+    text = re.sub(r'\s*\.?\s*dot\s*\.?\s*', '.', text)
+    # Replace " at " variations → "@"
+    text = re.sub(r'\s*\.?\s*at\s*\.?\s*', '@', text)
+
+    # Handle "dot" at start of domain: "dot com" → ".com"
+    text = re.sub(r'\.com\b', '.com', text)
+
+    # Remove dashes between alphanumeric chars: S-E-E-T-A → SEETA, 1-0-2-5-0 → 10250
+    # Use lookahead/lookbehind instead of \b — avoids issues with consecutive dash-separated chars
+    text = re.sub(r'(?<=[a-zA-Z0-9])-(?=[a-zA-Z0-9])', '', text)
+
+    # Remove all spaces
+    text = text.replace(' ', '')
+
+    # Clean up artifacts
+    while '..' in text:
+        text = text.replace('..', '.')
+    text = text.strip('.@')
+
+    # Validate
+    if '@' in text and '.' in text.split('@')[-1]:
+        return text
+
+    return None
 
 
-async def llm_normalize_email(raw: str, user_message: str = "") -> str:
-    """Use LLM to interpret spelled-out email addresses.
-
-    When callers spell emails letter-by-letter over voice (e.g.,
-    "S E E T A dot 24 B C S at S S T dot scaler dot com"), algorithmic
-    parsing fails. The LLM understands these patterns naturally.
+def _extract_email_from_message(message: str) -> tuple[str | None, str | None]:
+    """Try to extract a spelled-out email from user message.
+    Returns (normalized_email, raw_email_fragment) or (None, None).
     """
-    if not raw or not raw.strip():
-        return raw
+    # Try structured pattern first: "email is X" or "email would be X"
+    m = _EMAIL_PATTERN.search(message)
+    if m:
+        raw = m.group(1).strip()
+        normalized = _fast_normalize(raw)
+        if normalized:
+            return normalized, raw
+        return None, raw
 
-    # Quick cleanup for clean emails that just need basic fixes
-    if not _is_spelled_out_email(raw):
-        fixed = raw.lower().replace(" ", "")
-        while ".." in fixed:
-            fixed = fixed.replace("..", ".")
-        fixed = fixed.strip(".@")
-        if "@" in fixed and "." in fixed.split("@")[-1]:
-            return fixed
-        return fixed if "@" in fixed else raw
+    # Try looser pattern: find runs of "something dot something at something dot com"
+    m = _SPELLED_OUT_RUN.search(message)
+    if m:
+        raw = m.group(1).strip()
+        # Only proceed if it looks like an email (has both dot and at keywords)
+        if re.search(r'\b(dot|at)\b', raw.lower()):
+            normalized = _fast_normalize(raw)
+            if normalized:
+                return normalized, raw
+            return None, raw
 
-    # Spelled-out email — let LLM interpret it
-    context = user_message if user_message else raw
-    prompt = (
-        f"The user spelled their email over voice. Convert it to a proper email address.\n\n"
-        f"User said: \"{context}\"\n\n"
-        f"Rules:\n"
-        f"- Join spelled-out letters: S E E T A → seeta, J O H N → john\n"
-        f"- \"dot\" → \".\", \"at\" → \"@\"\n"
-        f"- Remove dashes between single letters: S-E-E-T-A → seeta\n"
-        f"- Numbers stay as-is: 2 4 → 24, 1 0 2 5 0 → 10250\n"
-        f"- Domain spelled out: S S T → sst, S C A L E R → scaler\n"
-        f"- Return ONLY the email address. No other text. No explanation."
-    )
+    return None, None
 
+
+async def _llm_normalize_email_fallback(raw: str) -> str | None:
+    """LLM-based email normalization as fallback when algorithmic approach fails."""
     try:
         from src.llm.llm_client import get_client
         from src.config import LLM_MODEL, LLM_TOP_P
@@ -94,33 +127,23 @@ async def llm_normalize_email(raw: str, user_message: str = "") -> str:
             lambda: client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
-                    {"role": "system", "content": "You convert spelled-out email addresses to proper format. Return ONLY the email address, nothing else."},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": "Convert spelled-out email to proper format. Return ONLY the email, nothing else. Examples: 'S E E T A dot 24 BCS at SST dot scaler dot com' → 'seeta.24bcs@sst.scaler.com', 'john at gmail dot com' → 'john@gmail.com'"},
+                    {"role": "user", "content": f"Convert to email: {raw}"},
                 ],
-                max_tokens=40,
+                max_tokens=30,
                 temperature=0.0,
                 top_p=LLM_TOP_P,
-                response_format={"type": "text"},
             )
         )
         result = (response.choices[0].message.content or "").strip().lower()
-        # Clean up common LLM artifacts
-        result = result.replace(" ", "")
-        result = result.strip(".@\"'`")
-        # Validate it looks like an email
+        result = result.replace(" ", "").strip(".@\"'`")
         if "@" in result and "." in result.split("@")[-1]:
-            logger.info("[routes] LLM normalized email: %r → %r", raw[:80], result)
+            logger.info("[routes] LLM fallback normalized: %r → %r", raw[:80], result)
             return result
-        logger.warning("[routes] LLM email normalization produced invalid result: %r → %r", raw[:80], result)
-        return raw
+        return None
     except Exception as e:
-        logger.error("[routes] LLM email normalization failed: %s", e)
-        # Fall back to basic cleanup
-        fixed = raw.lower()
-        fixed = fixed.replace(" at ", "@").replace(" dot ", ".")
-        fixed = fixed.replace(" ", "").replace("-", "")
-        fixed = fixed.strip(".@")
-        return fixed if "@" in fixed else raw
+        logger.error("[routes] LLM fallback email normalization failed: %s", e)
+        return None
 
 
 # ── Robust LLM output parsing (voice must never fail with "formatting issue") ─
@@ -278,6 +301,24 @@ async def chat(request: ChatRequest):
         if not user_message:
             raise HTTPException(status_code=400, detail="Empty message")
 
+        # ── Stage 0: Eager email normalization (voice only) ────────────────────
+        # Normalize spelled-out emails BEFORE the LLM sees them so it never
+        # has to echo back garbled STT text. Inject clean email into message.
+        normalized_email: str | None = None
+        if request.channel == "voice":
+            clean_email, raw_fragment = _extract_email_from_message(user_message)
+            if clean_email:
+                normalized_email = clean_email
+                user_message = f"{user_message}\n[Email normalized: {clean_email}]"
+                logger.info("[routes] Eager email normalization: %r → %r", raw_fragment[:60] if raw_fragment else "?", clean_email)
+            elif raw_fragment:
+                # Algorithmic failed, try LLM
+                clean_email = await _llm_normalize_email_fallback(raw_fragment)
+                if clean_email:
+                    normalized_email = clean_email
+                    user_message = f"{user_message}\n[Email normalized: {clean_email}]"
+                    logger.info("[routes] LLM fallback email normalization: %r → %r", raw_fragment[:60], clean_email)
+
         # ── Stage 1: Guardrails ─────────────────────────────────────────────────
         try:
             block = check_guardrails(user_message)
@@ -342,6 +383,31 @@ async def chat(request: ChatRequest):
                     return ChatResponse(response="I encountered a formatting issue. Please try again.")
             else:
                 json_parse_failures = 0  # reset on success
+
+            # Voice quality guard: detect leaked reasoning / overlong responses
+            if request.channel == "voice" and llm_text_response:
+                voice_text = llm_text_response
+                # Detect LLM reasoning leakage patterns
+                reasoning_markers = [
+                    "According to the booking rule",
+                    "The rule says",
+                    "But in this case",
+                    "We need to",
+                    "However,",
+                    "thought_process",
+                    "Let me think",
+                ]
+                is_reasoning_leak = (
+                    len(voice_text) > 400 or
+                    any(marker.lower() in voice_text.lower() for marker in reasoning_markers)
+                )
+                if is_reasoning_leak and json_parse_failures <= 1:
+                    json_parse_failures += 1
+                    logger.warning("[routes] Voice response looks like leaked reasoning (%d chars), retrying. Preview: %s...",
+                                   len(voice_text), voice_text[:120])
+                    messages.append({"role": "assistant", "content": response_text})
+                    messages.append({"role": "user", "content": "Your response was too long. Output SHORT JSON (max 2 sentences for 'response' field). Just the spoken words, no reasoning."})
+                    continue
 
             # ── Stage 4: Handle tool calls ──────────────────────────────────────────
             if not tool_call:
@@ -455,7 +521,14 @@ async def chat(request: ChatRequest):
                     args = tool_call.get("arguments", {})
                     date = args.get("date", "")
                     booking_time = args.get("time", "")
-                    email = await llm_normalize_email(args.get("email", ""), user_message)
+                    raw_email = args.get("email", "")
+                    # Use eagerly-normalized email if available, else basic cleanup
+                    if normalized_email:
+                        email = normalized_email
+                    elif "@" in raw_email:
+                        email = raw_email.lower().replace(" ", "").strip(".@")
+                    else:
+                        email = _fast_normalize(raw_email) or raw_email
                     name = args.get("name", "").strip()
 
                     if not all([date, booking_time, email, name]):
@@ -628,9 +701,10 @@ async def vapi_chat_completions(req: dict):
         ai_text = re.sub(r'#(.*?)\n', r'\1\n', ai_text)
         ai_text = ai_text.replace('`', '')
         
-        # Strip UI widgets that might leak into Voice
+        # Strip UI widgets and internal hints that might leak into Voice
         ai_text = re.sub(r'\[BOOKING_WIDGET.*?\]', '', ai_text)
         ai_text = re.sub(r'\[CALENDAR_WIDGET\]', '', ai_text)
+        ai_text = re.sub(r'\[Email normalized:[^\]]*\]', '', ai_text)
 
         stream = req.get("stream", False)
         if stream:
