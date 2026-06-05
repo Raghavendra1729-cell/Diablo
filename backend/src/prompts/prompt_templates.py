@@ -79,6 +79,52 @@ TOOL_SCHEMAS: list[dict] = [
             "required": ["query"],
         },
     },
+    {
+        "name": "cancel_meeting",
+        "description": (
+            "Cancel an existing meeting booking. "
+            "Use this ONLY when the user provides the booking ID."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "booking_id": {
+                    "type": "string",
+                    "description": "The booking ID to cancel.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for cancellation.",
+                },
+            },
+            "required": ["booking_id"],
+        },
+    },
+    {
+        "name": "reschedule_meeting",
+        "description": (
+            "Reschedule an existing meeting booking. "
+            "Use this ONLY when the user provides the booking ID, new date, and new time."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "booking_id": {
+                    "type": "string",
+                    "description": "The booking ID to reschedule.",
+                },
+                "new_date": {
+                    "type": "string",
+                    "description": "The new date in YYYY-MM-DD format.",
+                },
+                "new_time_slot": {
+                    "type": "string",
+                    "description": "The new time slot in HH:MM 24-hour format.",
+                },
+            },
+            "required": ["booking_id", "new_date", "new_time_slot"],
+        },
+    },
 ]
 
 _TOOL_SCHEMA_TEXT = "\n".join(

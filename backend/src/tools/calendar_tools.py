@@ -311,7 +311,7 @@ async def book_slot(
                 message=f"Booking validation failed: {detail}",
             )
 
-            response.raise_for_status()
+        response.raise_for_status()
 
         data = response.json()
         booking_data: dict = data.get("data", data)  # v2 wraps in "data"
@@ -393,7 +393,7 @@ async def cancel_booking(
                 message=f"Booking {booking_id} not found.",
             )
 
-            response.raise_for_status()
+        response.raise_for_status()
 
         return ToolResult(
             success=True,
