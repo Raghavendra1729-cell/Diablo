@@ -1,9 +1,4 @@
-"""Entry point — creates FastAPI app with startup health checks and latency logging.
-
-NOTE: Ingestion is NOT run on startup. Run once explicitly:
-    python ingest.py           # skip-if-already-indexed
-    python ingest.py --force   # force full re-index
-"""
+"""FastAPI application entry point."""
 import os
 import time
 import logging
@@ -43,24 +38,24 @@ async def lifespan(app: FastAPI):
         from src.embeddings.embedder import get_embedder, get_sparse_embedder
         get_embedder()        # triggers lazy load of dense model
         get_sparse_embedder() # triggers lazy load of sparse model
-        logger.info("[startup] ✅ Embedding models warmed up.")
+        logger.info("[startup] Embedding models warmed up.")
     except Exception as exc:
-        logger.warning("[startup] ⚠️ Could not pre-warm embedding models: %s", exc)
+        logger.warning("[startup] Could not pre-warm embedding models: %s", exc)
 
     logger.info("[startup] Checking Qdrant collection health...")
     try:
         ready, count = check_collection_ready()
         if ready:
-            logger.info("[startup] ✅ Qdrant collection is ready with %d indexed points.", count)
+            logger.info("[startup] Qdrant collection is ready with %d indexed points.", count)
         else:
             logger.warning(
-                "[startup] ⚠️  Qdrant collection is EMPTY or does not exist. "
+                "[startup] Qdrant collection is EMPTY or does not exist. "
                 "The API will start but /v1/chat will return no context. "
                 "Run:  python ingest.py   to index your data."
             )
     except Exception as exc:
         logger.error(
-            "[startup] ❌ Could not reach Qdrant: %s. "
+            "[startup] Could not reach Qdrant: %s. "
             "Check QDRANT_URL / QDRANT_HOST env vars.",
             exc,
         )

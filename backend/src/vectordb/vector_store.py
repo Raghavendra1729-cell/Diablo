@@ -52,9 +52,7 @@ _client_lock = threading.Lock()
 UPSERT_BATCH_SIZE = 100  # recommended max points per upsert call
 
 
-# ---------------------------------------------------------------------------
 # Client singleton
-# ---------------------------------------------------------------------------
 
 
 def get_client() -> QdrantClient:
@@ -86,9 +84,7 @@ def get_client() -> QdrantClient:
     return _client
 
 
-# ---------------------------------------------------------------------------
 # Collection helpers
-# ---------------------------------------------------------------------------
 
 
 def check_collection_ready() -> tuple[bool, int]:
@@ -157,9 +153,7 @@ def upsert_points(points: list[PointStruct]) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # Search
-# ---------------------------------------------------------------------------
 
 
 def search(

@@ -22,9 +22,7 @@ from src.tools.rag_tools import search_knowledge_base
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Tool registry
-# ---------------------------------------------------------------------------
 
 # Maps every tool name (including aliases for backward compatibility) to its
 # async callable.  All values must be ``async def`` functions returning ToolResult.
@@ -42,9 +40,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Coroutine[Any, Any, ToolResult]]] = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Dispatcher
-# ---------------------------------------------------------------------------
 
 async def execute_tool(tool_call: dict[str, Any]) -> ToolResult:
     """Execute a tool_call dict produced by the LLM.

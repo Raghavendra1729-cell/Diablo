@@ -4,9 +4,7 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Guardrails — regex-based adversarial + off-topic detection
-# ---------------------------------------------------------------------------
 
 import re
 

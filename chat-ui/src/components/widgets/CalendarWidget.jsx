@@ -65,7 +65,7 @@ export function CalendarWidget({ onConfirm, disabled }) {
                   disabled={disabled}
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
                     selectedSlot === slot 
-                      ? 'bg-accent text-blue-900 shadow-md' 
+                      ? 'bg-accent text-white shadow-md' 
                       : 'bg-elevated text-primary border border-border hover:border-accent/50'
                   }`}
                 >
@@ -101,7 +101,7 @@ export function CalendarWidget({ onConfirm, disabled }) {
             <Button 
               type="submit"
               disabled={disabled || loading}
-              className="w-full mt-2 bg-gradient-to-r from-accent to-accent2 text-blue-900 font-semibold rounded-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all h-10"
+              className="w-full mt-2 bg-gradient-to-r from-accent to-accent2 text-white font-semibold rounded-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all h-10"
             >
               Confirm Meeting
             </Button>

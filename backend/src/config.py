@@ -86,7 +86,7 @@ def validate_env() -> None:
         )
 
     for w in warnings:
-        logger.warning("[config] ⚠️  %s", w)
+        logger.warning("[config] %s", w)
 
 
 # validate_env() moved to main.py lifespan startup handler

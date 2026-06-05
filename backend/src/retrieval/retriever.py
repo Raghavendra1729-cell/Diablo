@@ -1,18 +1,4 @@
-"""Retrieval — semantic search with HyDE expansion + intent-based filtered search.
-
-Strategy overview
------------------
-1. HyDE (rule-based):  vague queries like "what are his projects?" get a
-   hypothetical answer appended before embedding, so the query vector is much
-   closer to actual document chunks (cosine sim ~0.42 → ~0.65+).
-2. Intent detection:   queries mentioning education/career/certification are
-   routed to resume-only chunks; queries about repos/code go to code chunks.
-   Everything else searches the full collection.
-3. Fallback:           if step 2 returns 0 results, retry with the original
-   (unexpanded) query at a lower score threshold (0.25) to catch near-misses.
-4. NO_CONTEXT_SENTINEL: if still 0 results, return a sentinel string so the
-   LLM always receives non-empty context and avoids unguided hallucination.
-"""
+"""Semantic search retrieval pipeline."""
 from __future__ import annotations
 
 import logging
@@ -59,9 +45,7 @@ NO_CONTEXT_SENTINEL = (
     "Strictly and politely state that you do not have enough information to answer this question.]"
 )
 
-# ---------------------------------------------------------------------------
 # HyDE — rule-based query expansion for vague/broad queries
-# ---------------------------------------------------------------------------
 
 # Regex: matches question openers followed by broad topic nouns
 _VAGUE_PATTERNS = re.compile(
@@ -110,9 +94,7 @@ _EXPANSION_MAP: dict[str, str] = {
     ),
 }
 
-# ---------------------------------------------------------------------------
 # Intent detection — route query to right document type filter
-# ---------------------------------------------------------------------------
 
 _RESUME_INTENT = re.compile(
     r"(education|degree|college|university|gpa|certification|certif|experience"
@@ -126,9 +108,7 @@ _CODE_INTENT = re.compile(
 )
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _should_use_hyde(query: str) -> bool:
@@ -178,9 +158,7 @@ def _detect_intent(query: str) -> str | None:
         return None
 
 
-# ---------------------------------------------------------------------------
 # Public API
-# ---------------------------------------------------------------------------
 
 
 def retrieve_context(query: str, top_k: int | None = None) -> list[str]:

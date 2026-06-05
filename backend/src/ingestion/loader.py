@@ -25,9 +25,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 
-# ---------------------------------------------------------------------------
 # Clone & Filter strategy
-# ---------------------------------------------------------------------------
 
 WHITELIST_EXTENSIONS = {".py", ".js", ".ts", ".md", ".json", ".txt", ".yaml", ".yml", ".toml"}
 BLACKLIST_DIRS = {
@@ -163,9 +161,7 @@ def walk_and_chunk(root: Path, source_prefix: str) -> list[dict]:
     return docs
 
 
-# ---------------------------------------------------------------------------
 # REPO_REGISTRY — REPLACE WITH YOUR REAL GITHUB REPOS
-# ---------------------------------------------------------------------------
 # Format:
 #   {"url": "https://github.com/USERNAME/REPO.git", "branch": "main"}   ← clones from GitHub
 #   {"local": "data/repos/my-repo"}                                      ← uses local folder
@@ -174,7 +170,6 @@ def walk_and_chunk(root: Path, source_prefix: str) -> list[dict]:
 #     public GitHub repository URLs before running ingestion. Repos that return
 #     a 404 will be skipped with a warning — ingestion will continue with
 #     whichever repos succeed.
-# ---------------------------------------------------------------------------
 
 REPO_REGISTRY: list[dict] = [
     {"url": "https://github.com/Raghavendra1729-cell/PrismSearch.git", "branch": "main"},
@@ -224,9 +219,7 @@ def load_all_documents(data_dir: Path = DATA_DIR) -> list[dict]:
     return all_docs
 
 
-# ---------------------------------------------------------------------------
 # Main ingestion pipeline
-# ---------------------------------------------------------------------------
 
 def ingest(data_dir: Path = DATA_DIR, force: bool = False) -> int:
     """Full pipeline: load → chunk → embed → upsert. Returns total chunk count.

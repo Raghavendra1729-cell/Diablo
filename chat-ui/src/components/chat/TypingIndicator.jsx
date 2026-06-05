@@ -5,7 +5,7 @@ export function TypingIndicator() {
   return (
     <div className="flex items-start gap-3 animate-message-in" role="status" aria-label="Assistant is typing">
       <Avatar className="w-8 h-8 shrink-0 bg-gradient-to-br from-accent to-accent2 shadow-md avatar-pulse">
-        <AvatarFallback className="bg-transparent"><Bot className="w-[15px] h-[15px] text-blue-900" /></AvatarFallback>
+        <AvatarFallback className="bg-transparent"><Bot className="w-[15px] h-[15px] text-white" /></AvatarFallback>
       </Avatar>
       <div className="glass rounded-[20px] rounded-tl-sm px-5 py-3.5 flex items-center gap-3 shadow-md">
         <span className="text-[11px] font-bold text-secondary tracking-widest uppercase drop-shadow-sm">Thinking</span>

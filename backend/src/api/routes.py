@@ -1,15 +1,8 @@
-"""FastAPI routes — /health, /v1/chat, /v1/availability, /chat/completions.
-
-Stage pipeline for /v1/chat:
-  1. Guardrails (regex-based adversarial / off-topic detection)
-  2. CRAG pipeline: retrieve context → build prompt → call LLM
-  3. Extract tool_call JSON from LLM output
-  4. Dispatch tool call via execute_tool() → handle result per tool type
-  5. Return clean response (tool JSON stripped from visible text)
-"""
+"""FastAPI routes for chat, availability, and health."""
 import json
 import re
 import time
+import datetime
 from typing import Optional, Literal, Dict, Any
 import traceback
 import logging
@@ -19,9 +12,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
-# ---------------------------------------------------------------------------
 # Internal imports
-# ---------------------------------------------------------------------------
 from src.utils.helpers import check_guardrails
 from src.tools.tool_executor import execute_tool
 from src.tools.calendar_tools import check_availability
@@ -34,9 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
 # Request / Response schemas
-# ---------------------------------------------------------------------------
 
 class Message(BaseModel):
     role: Literal["user", "assistant", "system"]
@@ -87,9 +76,7 @@ async def health_check(ping_llm: bool = False):
             
     return {"status": "ok", "message": "Backend is running flawlessly"}
 
-# ---------------------------------------------------------------------------
 # API Endpoints
-# ---------------------------------------------------------------------------
 
 @router.post("/v1/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -272,7 +259,6 @@ async def chat(request: ChatRequest):
                         final_msg = result.message
                         if request.channel == "voice":
                             try:
-                                import datetime
                                 dt = datetime.datetime.strptime(date, "%Y-%m-%d")
                                 nice_date = dt.strftime("%A") # e.g. Tuesday
                                 t_obj = datetime.datetime.strptime(booking_time, "%H:%M")

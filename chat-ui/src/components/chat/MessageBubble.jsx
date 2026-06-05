@@ -58,7 +58,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
         {isUser ? (
           <AvatarFallback className="bg-transparent"><User className="w-[15px] h-[15px] text-secondary/70" aria-label="User" /></AvatarFallback>
         ) : (
-          <AvatarFallback className="bg-transparent"><Bot className="w-[15px] h-[15px] text-blue-900" aria-label="Diablo" /></AvatarFallback>
+          <AvatarFallback className="bg-transparent"><Bot className="w-[15px] h-[15px] text-white" aria-label="Diablo" /></AvatarFallback>
         )}
       </Avatar>
 
@@ -67,11 +67,11 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
         {/* Bubble */}
         <div className={`${
           isUser
-            ? 'bg-gradient-to-br from-accent to-accent2 text-blue-900 rounded-[24px] rounded-tr-[4px] shadow-lg shadow-accent/20'
+            ? 'bg-gradient-to-br from-accent to-accent2 text-white rounded-[24px] rounded-tr-[4px] shadow-lg shadow-accent/20'
             : 'glass rounded-[24px] rounded-bl-[4px] shadow-md'
         } px-6 py-4.5 overflow-x-auto break-words min-w-0 max-w-full relative group/bubble transition-transform hover:-translate-y-0.5`}>
           <div className={`text-[15px] leading-relaxed ${
-            isUser ? 'text-blue-900' : 'chat-prose'
+            isUser ? 'text-white' : 'chat-prose'
           }`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentWithoutWidget}</ReactMarkdown>
           </div>

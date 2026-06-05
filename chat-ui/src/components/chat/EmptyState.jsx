@@ -10,7 +10,7 @@ export function EmptyState({ suggestions, onSelect }) {
         <div className="absolute inset-0 bg-accent/20 rounded-[2.5rem] blur-2xl group-hover:bg-accent/40 transition-colors duration-500"></div>
         <div className="w-28 h-28 rounded-[2.5rem] glass-elevated flex items-center justify-center relative z-10 border border-white/20">
           <div className="w-20 h-20 rounded-[1.8rem] bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[inset_0_0_20px_rgba(255,255,255,0.3)] group-hover:scale-105 transition-transform duration-500">
-             <Bot className="w-10 h-10 text-blue-900 drop-shadow-md" />
+             <Bot className="w-10 h-10 text-white drop-shadow-md" />
           </div>
         </div>
         <div className="absolute -top-2 -right-2 z-20">

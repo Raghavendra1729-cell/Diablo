@@ -1,16 +1,7 @@
-"""Production-grade system prompt builder and tool schemas for the CRAG engine.
-
-Exports:
-  TOOL_SCHEMAS       — list of all tool schemas for LLM awareness
-  build_system_prompt() — constructs the full system prompt
-  build_messages()      — assembles the messages list for the LLM
-"""
+"""System prompt builder and tool schemas."""
 import datetime
 
-# ---------------------------------------------------------------------------
-# Tool schemas — shown to the LLM so it knows which tool names and argument
-# shapes to emit in its JSON tool_call output.
-# ---------------------------------------------------------------------------
+# Tool schemas for LLM context
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -131,9 +122,7 @@ _TOOL_SCHEMA_TEXT = "\n".join(
     f"  • {t['name']}: {t['description'].split('. ')[0]}." for t in TOOL_SCHEMAS
 )
 
-# ---------------------------------------------------------------------------
 # Channel-specific formatting rules
-# ---------------------------------------------------------------------------
 
 VOICE_FORMAT_RULES = """====== VOICE DESIGN RULES ======
 Format for TTS ear, not eye.
@@ -173,9 +162,7 @@ WEB_FORMAT_RULES = """====== WEB DESIGN RULES ======
 - If user asks to schedule BUT HAS NO DATE, MUST append: [CALENDAR_WIDGET]
 - Keep paragraphs < 5 sentences."""
 
-# ---------------------------------------------------------------------------
 # Prompt builder
-# ---------------------------------------------------------------------------
 
 def build_system_prompt(channel: str, context_chunks: list[str]) -> str:
     """Build the complete system prompt enforcing strict Pydantic JSON."""

@@ -31,9 +31,7 @@ def _get_http_client() -> httpx.AsyncClient:
         _http_client = httpx.AsyncClient(timeout=15.0)
     return _http_client
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
 
 # Each endpoint group in Cal.com v2 uses its own API version header.
 _CAL_API_VERSION_SLOTS = "2024-09-04"      # GET /v2/slots
@@ -67,9 +65,7 @@ def _to_iso(date: str, time_slot: str, tz_name: str) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
 # Tool 1: check_availability
-# ---------------------------------------------------------------------------
 
 async def check_availability(
     date: str,
@@ -217,9 +213,7 @@ async def check_availability(
         )
 
 
-# ---------------------------------------------------------------------------
 # Tool 2: book_slot
-# ---------------------------------------------------------------------------
 
 async def book_slot(
     date: str,
@@ -350,9 +344,7 @@ async def book_slot(
         )
 
 
-# ---------------------------------------------------------------------------
 # Tool 3: cancel_booking
-# ---------------------------------------------------------------------------
 
 async def cancel_booking(
     booking_id: str,
@@ -415,9 +407,7 @@ async def cancel_booking(
         )
 
 
-# ---------------------------------------------------------------------------
 # Tool 4: reschedule_booking
-# ---------------------------------------------------------------------------
 
 async def reschedule_booking(
     booking_id: str,
@@ -495,9 +485,7 @@ async def reschedule_booking(
         )
 
 
-# ---------------------------------------------------------------------------
 # Tool 5: list_bookings
-# ---------------------------------------------------------------------------
 
 async def list_bookings(status: str = "upcoming") -> ToolResult:
     """List Cal.com bookings filtered by status.
