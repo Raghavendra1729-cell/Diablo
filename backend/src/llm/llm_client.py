@@ -3,10 +3,12 @@
 Singleton is protected with threading.Lock. Requests include a 60-second timeout
 to prevent the event loop from hanging indefinitely.
 """
+import asyncio
 import logging
 import threading
 from typing import Optional
 from openai import OpenAI
+from starlette.concurrency import run_in_threadpool
 from src.config import (
     LLM_BASE_URL,
     LLM_MODEL,
@@ -39,21 +41,26 @@ def get_client() -> OpenAI:
     return _client
 
 
-import time as _time
+async def generate(messages: list[dict], max_retries: int = 2) -> str:
+    """Send messages to LLM, return response text. Async with retry logic.
 
-def generate(messages: list[dict], max_retries: int = 2) -> str:
-    """Send messages to LLM, return response text. Includes retry logic."""
+    The blocking OpenAI HTTP call is offloaded to a threadpool thread via
+    ``run_in_threadpool``. Retry waits use ``asyncio.sleep`` so the event
+    loop stays free for other requests during backoff.
+    """
     last_exc = None
     for attempt in range(max_retries + 1):
         try:
             client = get_client()
-            response = client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=messages,
-                max_tokens=LLM_MAX_TOKENS,
-                temperature=LLM_TEMPERATURE,
-                top_p=LLM_TOP_P,
-                response_format={"type": "json_object"},
+            response = await run_in_threadpool(
+                lambda: client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=messages,
+                    max_tokens=LLM_MAX_TOKENS,
+                    temperature=LLM_TEMPERATURE,
+                    top_p=LLM_TOP_P,
+                    response_format={"type": "json_object"},
+                )
             )
             content = response.choices[0].message.content
             return (content or "").strip()
@@ -62,6 +69,6 @@ def generate(messages: list[dict], max_retries: int = 2) -> str:
             if attempt < max_retries:
                 wait = 2 ** attempt
                 logger.warning("[llm] Attempt %d failed, retrying in %ds: %s", attempt + 1, wait, exc)
-                _time.sleep(wait)
+                await asyncio.sleep(wait)
     logger.error("[llm] All %d attempts failed: %s", max_retries + 1, last_exc)
     return '{"thought_process": "Error occurred.", "response": "I am experiencing a temporary issue. Please try again in a moment.", "tool_call": null}'

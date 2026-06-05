@@ -2,6 +2,15 @@
 
 Exposes the vector-store semantic search as a first-class tool so the
 tool executor can dispatch it the same way as calendar tools.
+
+.. note::
+
+    ``retrieve_context`` internally calls ``embed_query`` + Qdrant search,
+    both of which are synchronous. Under high concurrency the default
+    Starlette threadpool (40 threads) could be exhausted. For production,
+    consider ``anyio.to_thread.run_sync(retrieve_context, ..., limiter=...)``
+    with an explicit concurrency limiter, or move embedding to a dedicated
+    worker pool.
 """
 import logging
 from src.tools.base import ToolResult
@@ -9,14 +18,14 @@ from src.retrieval.retriever import retrieve_context
 
 logger = logging.getLogger(__name__)
 
+from src.config import RETRIEVAL_TOP_K
 
-async def search_knowledge_base(query: str, top_k: int = 5) -> ToolResult:
+async def search_knowledge_base(query: str, top_k: int = RETRIEVAL_TOP_K) -> ToolResult:
     """Search the persona knowledge base (resume + GitHub repos) for relevant context.
 
     This is a thin async wrapper around the synchronous ``retrieve_context``
-    retriever. It is kept ``async`` so it integrates cleanly with the
-    ``tool_executor`` dispatcher without blocking the event loop for long
-    (embeddings + Qdrant lookup are fast in practice).
+    retriever. The blocking call is offloaded via ``run_in_threadpool`` to
+    avoid tying up the event loop.
 
     Args:
         query:  Free-text search query from the LLM or caller.

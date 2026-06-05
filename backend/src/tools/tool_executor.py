@@ -34,7 +34,9 @@ TOOL_REGISTRY: dict[str, Callable[..., Coroutine[Any, Any, ToolResult]]] = {
     "book_meeting": book_slot,            # alias
     "book_interview": book_slot,          # alias — legacy LLM output
     "cancel_booking": cancel_booking,
+    "cancel_meeting": cancel_booking,
     "reschedule_booking": reschedule_booking,
+    "reschedule_meeting": reschedule_booking,
     "list_bookings": list_bookings,
     "search_knowledge_base": search_knowledge_base,
 }
@@ -87,7 +89,8 @@ async def execute_tool(tool_call: dict[str, Any]) -> ToolResult:
         )
 
     fn = TOOL_REGISTRY[name]
-    logger.info("[tool_executor] Executing tool '%s' with args: %s", name, arguments)
+    safe_args = {k: ("***" if k in ("email", "name") else v) for k, v in arguments.items()}
+    logger.info("[tool_executor] Executing tool '%s' with args: %s", name, safe_args)
 
     try:
         result: ToolResult = await fn(**arguments)

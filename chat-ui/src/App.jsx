@@ -37,12 +37,12 @@ function TypingIndicator() {
       <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-md avatar-pulse">
         <Bot className="w-[15px] h-[15px] text-white" />
       </div>
-      <div className="bg-elevated border border-border backdrop-blur-md rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-2">
-        <span className="text-xs font-semibold text-secondary/70 tracking-wide uppercase">Thinking</span>
-        <div className="flex items-center gap-1 h-3">
-          <div className="w-1.5 h-1.5 rounded-full bg-accent/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-1.5 h-1.5 rounded-full bg-accent/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-1.5 h-1.5 rounded-full bg-accent/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+      <div className="glass rounded-[20px] rounded-tl-sm px-5 py-3.5 flex items-center gap-3 shadow-md">
+        <span className="text-[11px] font-bold text-secondary tracking-widest uppercase drop-shadow-sm">Thinking</span>
+        <div className="flex items-center gap-1.5 h-3">
+          <div className="typing-dot" style={{ animationDelay: '0ms' }} />
+          <div className="typing-dot" style={{ animationDelay: '150ms' }} />
+          <div className="typing-dot" style={{ animationDelay: '300ms' }} />
         </div>
       </div>
     </div>
@@ -57,7 +57,7 @@ function SuggestionChip({ text, onClick }) {
 
 function BookingReceipt({ id, date, time, email, meet_url, onAction, disabled }) {
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl bg-surface backdrop-blur-md border border-accent/20 shadow-sm animate-pop-in">
+    <div className="mt-4 overflow-hidden rounded-2xl glass shadow-lg shadow-black/20 animate-pop-in">
       <div className="bg-gradient-to-r from-success/90 to-success text-white px-4 py-3 flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-sm">
           <Check className="w-5 h-5 text-white" />
@@ -141,7 +141,7 @@ function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
   };
 
   return (
-    <div className="mt-4 p-4 bg-surface backdrop-blur-md border border-accent/20 rounded-2xl shadow-sm">
+    <div className="mt-4 p-5 glass rounded-2xl shadow-lg shadow-black/20">
       <h3 className="text-[13px] font-bold text-accent uppercase tracking-wider mb-3">Schedule Meeting for {date}</h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div role="group" aria-labelledby={`booking-time-label-${date}`}>
@@ -249,7 +249,7 @@ function CalendarWidget({ onConfirm, disabled }) {
   const localToday = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
   return (
-    <div className="mt-4 p-4 bg-surface backdrop-blur-md border border-accent/20 rounded-2xl shadow-sm">
+    <div className="mt-4 p-5 glass rounded-2xl shadow-lg shadow-black/20">
       <h3 className="text-[13px] font-bold text-accent uppercase tracking-wider mb-3">Schedule a Meeting</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -398,9 +398,9 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
         {/* Bubble */}
         <div className={`${
           isUser
-            ? 'bg-gradient-to-br from-accent to-accent2 text-white rounded-[20px] rounded-tr-sm shadow-md'
-            : 'bg-ai-bg border border-border backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm'
-        } px-5 py-4 overflow-x-auto break-words min-w-0 max-w-full`}>
+            ? 'bg-gradient-to-br from-accent to-accent2 text-white rounded-[24px] rounded-tr-[4px] shadow-lg shadow-accent/20'
+            : 'glass rounded-[24px] rounded-bl-[4px] shadow-md'
+        } px-6 py-4.5 overflow-x-auto break-words min-w-0 max-w-full relative group/bubble transition-transform hover:-translate-y-0.5`}>
           <div className={`text-[15px] leading-relaxed ${
             isUser ? 'text-white' : 'chat-prose'
           }`}>
@@ -458,26 +458,27 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, onSendMessage, isD
 
 function EmptyState({ suggestions, onSelect }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-4 relative z-10 mt-10">
       {/* Avatar */}
-      <div className="relative mb-8 avatar-float">
-        <div className="w-24 h-24 rounded-[2rem] bg-elevated border border-border shadow-xl flex items-center justify-center backdrop-blur-xl">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-inner">
-             <Bot className="w-8 h-8 text-white" />
+      <div className="relative mb-10 avatar-float group cursor-default">
+        <div className="absolute inset-0 bg-accent/20 rounded-[2.5rem] blur-2xl group-hover:bg-accent/40 transition-colors duration-500"></div>
+        <div className="w-28 h-28 rounded-[2.5rem] glass-elevated flex items-center justify-center relative z-10 border border-white/20">
+          <div className="w-20 h-20 rounded-[1.8rem] bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[inset_0_0_20px_rgba(255,255,255,0.3)] group-hover:scale-105 transition-transform duration-500">
+             <Bot className="w-10 h-10 text-white drop-shadow-md" />
           </div>
         </div>
-        <div className="absolute -top-1 -right-1">
+        <div className="absolute -top-2 -right-2 z-20">
           <StatusDot />
         </div>
       </div>
 
       {/* Greeting */}
-      <h2 className="text-3xl font-display font-semibold mb-4 tracking-tight leading-snug text-primary">
-        Hey there, I am <span className="text-accent">Diablo</span>
+      <h2 className="text-4xl sm:text-5xl font-display font-bold mb-5 tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-r from-white via-primary to-secondary drop-shadow-sm">
+        Hey there, I am <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-accent2">Diablo</span>
       </h2>
 
-      <p className="text-base text-secondary max-w-md leading-relaxed mb-10 animate-fade-in font-medium">
-        I am Linga Seetha Rama Raghavendra's personal butler. Let me help you get
+      <p className="text-lg text-secondary max-w-md leading-relaxed mb-12 animate-fade-in font-medium px-4">
+        I am Linga Seetha Rama Raghavendra's personal AI. Let me help you get
         to know my master better — ask me about their background, skills,
         experience, or book an interview.
       </p>
@@ -495,22 +496,14 @@ function EmptyState({ suggestions, onSelect }) {
 
 function EdgeGlows() {
   return (
-    <div className="fixed inset-0 pointer-events-none z-[2]" aria-hidden="true">
-      {/* Corner gradients — static ambient glow */}
-      <div className="absolute -top-32 -left-32 w-[500px] h-[500px]" style={{
-        background: 'radial-gradient(circle at 50% 50%, rgba(59,130,246,0.1) 0%, transparent 65%)',
-      }} />
-      <div className="absolute top-1/2 -right-32 w-[400px] h-[400px]" style={{
-        background: 'radial-gradient(circle at 50% 50%, rgba(168,85,247,0.06) 0%, transparent 65%)',
-      }} />
-    </div>
+    <div className="bg-animated" aria-hidden="true" />
   );
 }
 
 /* ─── App ─── */
 
 const SUGGESTIONS = [
-  'Tell me about your master',
+  'Why hire Linga?',
   'What skills does he have?',
   'Book an interview',
   'His experience & projects',
@@ -530,6 +523,19 @@ export default function App() {
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  useEffect(() => {
+    document.title = "Diablo | Premium AI Assistant";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute("content", "Chat with Diablo, the state-of-the-art personal AI assistant of Linga Seetha Rama Raghavendra. Experience modern UI and dynamic interactions.");
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = "description";
+      meta.content = "Chat with Diablo, the state-of-the-art personal AI assistant of Linga Seetha Rama Raghavendra. Experience modern UI and dynamic interactions.";
+      document.head.appendChild(meta);
+    }
+  }, []);
 
   useAutoResize(textareaRef, input);
 
@@ -558,8 +564,15 @@ export default function App() {
     setMessages((prev) => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
 
+    if (userMsg.length > 2000) {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Message too long. Please keep it under 2000 characters.' }]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const history = messagesRef.current.map((m) => ({ role: m.role, content: m.content }));
+      const history = [...messagesRef.current, { role: 'user', content: userMsg }]
+          .map((m) => ({ role: m.role, content: m.content }));
       const res = await axios.post(`${API_URL}/v1/chat`, {
         message: userMsg, history, channel: 'web',
       });
@@ -654,7 +667,7 @@ export default function App() {
       <footer className="shrink-0 px-4 sm:px-6 pb-6 pt-4 z-20">
         <div className="max-w-4xl mx-auto">
           <form onSubmit={handleSubmit}>
-            <div className="flex items-end gap-3 input-wrap px-4 py-3 focus-within:ring-2 focus-within:ring-accent/50 rounded-2xl transition-shadow">
+            <div className="flex items-end gap-3 input-wrap px-5 py-3.5 transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -669,10 +682,10 @@ export default function App() {
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="btn-send disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-1"
+                className="btn-send disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-accent/50 w-11 h-11 flex items-center justify-center"
                 aria-label="Send Message"
               >
-                <Send className="w-5 h-5" />
+                <Send className="w-5 h-5 translate-x-px translate-y-px drop-shadow-md" />
               </button>
             </div>
             <p className="text-center mt-3 text-[10px] text-secondary/40 uppercase tracking-widest font-semibold select-none flex items-center justify-center gap-2">

@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
-# Install git (required if you ever trigger /v1/ingest remotely to clone repos)
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install git and curl (required if you ever trigger /v1/ingest remotely to clone repos)
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 
 # Set up a new user named "user" with user ID 1000 (Required by HuggingFace Spaces)
 RUN useradd -m -u 1000 user
@@ -27,10 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download all 3 fastembed models into the image so they don't cold-download at runtime
 RUN python -c "\
-from fastembed import TextEmbedding, SparseTextEmbedding, TextCrossEncoder;\n\
+from fastembed import TextEmbedding, SparseTextEmbedding;\n\
 TextEmbedding(model_name='BAAI/bge-small-en-v1.5');\n\
 SparseTextEmbedding(model_name='Qdrant/bm25');\n\
-TextCrossEncoder(model_name='BAAI/bge-reranker-base');\n\
 "
 
 # Copy application files
@@ -39,12 +38,14 @@ COPY --chown=user:user . .
 # HuggingFace Spaces default port
 EXPOSE 7860
 
+# Health check so orchestrators can detect unhealthy containers
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:7860/health || exit 1
+
 # Start server on 0.0.0.0:7860 with 4 threads for concurrency
 CMD ["gunicorn", "main:app", \
      "-k", "uvicorn.workers.UvicornWorker", \
      "--bind", "0.0.0.0:7860", \
      "--workers", "1", \
-     "--threads", "4", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]

@@ -31,12 +31,6 @@ def mock_search_with_filter():
         ]
         yield m
 
-@pytest.fixture
-def mock_reranker():
-    with patch("src.retrieval.retriever.rerank_chunks") as m:
-        # Mock reranker simply returning the top texts
-        m.return_value = ["Sample text"]
-        yield m
 
 def test_intent_detection():
     assert _detect_intent("What is his education?") == "resume"
@@ -47,18 +41,18 @@ def test_hyde_expansion():
     query = "what are his projects?"
     expanded = _expand_query(query)
     assert len(expanded) > len(query)
-    assert "SastaNotebookLM" in expanded  # Assuming this exists in the hardcoded HyDE maps
+    assert "projects" in expanded
+    assert "portfolio" in expanded
 
-def test_retrieve_context_success(mock_embedder, mock_sparse_embedder, mock_search, mock_reranker):
+def test_retrieve_context_success(mock_embedder, mock_sparse_embedder, mock_search):
     # Test a general query
     result = retrieve_context("tell me something general")
     assert len(result) > 0
     assert result[0] != NO_CONTEXT_SENTINEL
     assert "Sample text" in result[0]
 
-def test_retrieve_context_filtered(mock_embedder, mock_sparse_embedder, mock_search_with_filter, mock_reranker):
+def test_retrieve_context_filtered(mock_embedder, mock_sparse_embedder, mock_search_with_filter):
     # Test an intent query for code
-    mock_reranker.return_value = ["Sample code text"]
     result = retrieve_context("show me your github repos")
     mock_search_with_filter.assert_called()
     assert "Sample code text" in result[0]
@@ -69,10 +63,9 @@ def test_retrieve_context_no_hits(mock_embedder, mock_sparse_embedder):
         assert result == [NO_CONTEXT_SENTINEL]
 
 def test_retrieve_context_rerank_fallback():
-    # If chunks fail reranking entirely
-    with patch("src.retrieval.retriever.search", return_value=[{"text": "Bad chunk", "source": "bad", "score": 0.5}]), \
-         patch("src.retrieval.retriever.rerank_chunks", return_value=[]):
-        
+    # Reranking is currently bypassed (disabled for speed).
+    # The retriever slices Qdrant hits directly — an empty search result
+    # returns NO_CONTEXT_SENTINEL, not an empty rerank result.
+    with patch("src.retrieval.retriever.search", return_value=[]):
         result = retrieve_context("random")
-        # Should return NO_CONTEXT_SENTINEL if nothing survives reranking
         assert result == [NO_CONTEXT_SENTINEL]

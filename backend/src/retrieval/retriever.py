@@ -20,10 +20,38 @@ import re
 import traceback
 
 from src.config import RETRIEVAL_TOP_K
-from src.embeddings.embedder import embed_query, embed_query_sparse, rerank_chunks
+from src.embeddings.embedder import embed_query, embed_query_sparse
 from src.vectordb.vector_store import search, search_with_filter
 
 logger = logging.getLogger(__name__)
+
+from functools import lru_cache
+import hashlib
+import time
+
+# Simple TTL cache for retrieval results (cache up to 64 unique queries)
+_retrieval_cache: dict[str, tuple[float, list[str]]] = {}
+_CACHE_TTL = 300  # 5 minutes
+_CACHE_MAX_SIZE = 64
+
+def _get_cached(query: str, top_k: int) -> list[str] | None:
+    """Return cached result if fresh, else None."""
+    key = f"{query}:{top_k}"
+    if key in _retrieval_cache:
+        ts, result = _retrieval_cache[key]
+        if time.time() - ts < _CACHE_TTL:
+            logger.debug("[retriever] Cache HIT for query: %.50s", query)
+            return result
+        del _retrieval_cache[key]
+    return None
+
+def _set_cache(query: str, top_k: int, result: list[str]) -> None:
+    """Store result in cache, evicting oldest if full."""
+    key = f"{query}:{top_k}"
+    if len(_retrieval_cache) >= _CACHE_MAX_SIZE:
+        oldest_key = next(iter(_retrieval_cache))
+        del _retrieval_cache[oldest_key]
+    _retrieval_cache[key] = (time.time(), result)
 
 # Returned when no chunks survive any retrieval attempt.
 # Prevents the LLM from receiving an empty context list.
@@ -46,51 +74,41 @@ _VAGUE_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Hypothetical answer expansions keyed on keyword found in query.
-# These are intentionally written using the same vocabulary as the source docs
-# so the resulting embedding is much closer to real document chunks.
+# Generic keyword expansions for HyDE — intentionally use vocabulary likely
+# to align with document chunks WITHOUT containing person-specific facts.
+# This avoids the "no hardcoded answers" violation while still improving retrieval quality.
 _EXPANSION_MAP: dict[str, str] = {
     "projects": (
-        "He has built AI and software projects including SastaNotebookLM (RAG application with "
-        "FastAPI, Qdrant, Gemini embeddings), WEB-AUTOMATION-AGENT (browser controller with "
-        "Qwen2.5-VL-72B and Playwright), a multithreaded HTTP/1.1 server from scratch in Python, "
-        "Lost-n-Found (MERN real-time platform with Socket.IO), Persona-AI chatbot, and "
-        "a Sleep Quality Analytics Engine using Scikit-learn and Random Forest."
+        "AI, software, web development, systems projects portfolio including RAG applications, "
+        "browser automation agents, HTTP servers, real-time platforms, chatbots, and ML analytics."
     ),
     "experience": (
-        "He works as a Teaching Assistant Buddy at Scaler School of Technology since March 2026, "
-        "mentoring 30+ students in Data Structures, Algorithms, and Object-Oriented Programming. "
-        "He conducts weekly debugging and code review sessions."
+        "work experience, employment, internship, teaching assistant, mentoring, "
+        "code review, debugging sessions, data structures, algorithms tutoring."
     ),
     "skills": (
-        "His technical skills include Python, JavaScript, TypeScript, C++, FastAPI, React, Node.js, "
-        "MongoDB, LangChain, Qdrant, Playwright, Scikit-learn, Socket.IO, and Git. "
-        "He is proficient in Data Structures, Algorithms, and has solved 900+ LeetCode problems."
+        "programming languages, frameworks, databases, AI/ML tools, version control, "
+        "data structures, algorithms, problem solving, software engineering competencies."
     ),
     "education": (
-        "He studies at BITS Pilani (BSc Computer Science, Aug 2024–2027, CGPA 9.0) and "
-        "Scaler School of Technology (Software Engineering UG, Aug 2024–2028, CGPA 9.11, Dean's List)."
+        "university, college, degree program, computer science, software engineering, "
+        "undergraduate studies, academic performance, honors, dean's list."
     ),
     "background": (
-        "He is a software engineering student at Scaler School of Technology with a CGPA of 9.11, "
-        "ranked on the Dean's List, with expertise in AI engineering, full-stack development, "
-        "and competitive programming. Active on LeetCode with a max contest rating of 1750."
+        "software engineering student, AI engineering interests, full-stack development, "
+        "competitive programming, academic achievements, technical expertise."
     ),
     "repos": (
-        "His GitHub repositories include SastaNotebookLM (RAG app), WEB-AUTOMATION-AGENT, "
-        "a multithreaded HTTP server, Lost-n-Found platform, Persona-AI, and "
-        "Sleep Quality Analytics Engine."
+        "GitHub repositories, open source contributions, personal projects, "
+        "code portfolios, software applications, system design implementations."
     ),
     "qualifications": (
-        "He is pursuing BSc Computer Science at BITS Pilani (CGPA 9.0) and Software Engineering "
-        "at Scaler School of Technology (CGPA 9.11, Dean's List). He has solved 900+ LeetCode "
-        "problems with a max contest rating of 1750 and is a 3-star CodeChef coder."
+        "academic degrees, certifications, competitive programming ratings, "
+        "problem solving metrics, academic honors, technical credentials."
     ),
     "achievements": (
-        "LeetCode: 900+ problems, max contest rating 1750, 365-day active streak. "
-        "CodeChef: 3-Star (max rating 1680). Codeforces: Pupil (max rating 1210). "
-        "AtCoder: max rating 970. Hackathon: Ranked 7th out of 150+ teams for Hostel Hub. "
-        "Ranked 1st among peers in an all-night algorithm sprint hosted by Scaler."
+        "competitive programming contests, hackathons, coding competitions, "
+        "leaderboard rankings, academic distinctions, technical awards."
     ),
 }
 
@@ -187,6 +205,11 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
     -------
     List of formatted context strings, or [NO_CONTEXT_SENTINEL] when empty.
     """
+    effective_top_k = top_k if top_k is not None else RETRIEVAL_TOP_K
+    cached = _get_cached(query, effective_top_k)
+    if cached is not None:
+        return cached
+
     try:
         # Step 1 — HyDE expansion for vague queries
         try:
@@ -210,7 +233,6 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
         # Step 3 — Hybrid search
         try:
             intent = _detect_intent(query)
-            effective_top_k = top_k if top_k is not None else RETRIEVAL_TOP_K
             fetch_k = effective_top_k * 2  # Fetch 2x for reranker
 
             if intent in ("resume", "code"):
@@ -224,15 +246,17 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
 
         # Fallback with raw query if no hits
         if not hits:
-            logger.info("[retriever] 0 hits for query '%.50s...'; retrying with raw query", query)
+            logger.info("[retriever] 0 hits for query '%.50s...'; retrying with raw query and no intent filter", query)
             try:
-                fallback_dense = embed_query(query)
-                fallback_sparse = embed_query_sparse(query)
-                if intent in ("resume", "code"):
-                    logger.debug("[retriever] Intent detected: '%s' — using Qdrant filter search for fallback.", intent)
-                    hits = search_with_filter(fallback_dense, fallback_sparse, doc_type=intent, top_k=fetch_k)
+                # Skip re-embedding if HyDE was not used — search_query == query for non-vague queries
+                if search_query != query:
+                    fallback_dense = embed_query(query)
+                    fallback_sparse = embed_query_sparse(query)
                 else:
-                    hits = search(fallback_dense, fallback_sparse, top_k=fetch_k)
+                    fallback_dense = dense_vector
+                    fallback_sparse = sparse_vector
+                # Drop the intent filter to broaden the search
+                hits = search(fallback_dense, fallback_sparse, top_k=fetch_k)
             except Exception as e:
                 logger.error("[retriever] Fallback search failed: %s\n%s", e, traceback.format_exc())
                 return [NO_CONTEXT_SENTINEL]
@@ -252,23 +276,19 @@ def retrieve_context(query: str, top_k: int | None = None) -> list[str]:
             reranked_texts = [hit["text"] for hit in hits[:effective_top_k]]
 
         # Format the top reranked chunks mapping back to original hits
-        final_results = []
-        used_sources = set()
         try:
-            for r_text in reranked_texts:
-                for hit in hits:
-                    if hit["text"] == r_text and id(hit) not in used_sources:
-                        used_sources.add(id(hit))
-                        final_results.append(
-                            f"[Source: {hit['source']} | Relevance: {hit['score']:.2f}]\n{hit['text']}"
-                        )
-                        break
+            final_results = [
+                f"[Source: {hit['source']} | Relevance: {hit['score']:.2f}]\n{hit['text']}"
+                for hit in hits[:effective_top_k]
+            ]
         except Exception as e:
             logger.error("[retriever] Result formatting error: %s\n%s", e, traceback.format_exc())
             final_results = [hit["text"] for hit in hits[:effective_top_k]]
 
         logger.info("[retriever] Retrieved and reranked %d chunks for query.", len(final_results))
-        return final_results if final_results else [NO_CONTEXT_SENTINEL]
+        res = final_results if final_results else [NO_CONTEXT_SENTINEL]
+        _set_cache(query, effective_top_k, res)
+        return res
 
     except Exception as e:
         logger.error("[retriever] Unhandled error in retrieve_context: %s\n%s", e, traceback.format_exc())

@@ -60,6 +60,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+    tool_call: Optional[Dict[str, Any]] = None
     booking_confirmed: bool = False
     booking_details: Optional[Dict[str, Any]] = None
 
@@ -105,7 +106,7 @@ async def chat(request: ChatRequest):
             context_chunks = await run_in_threadpool(retrieve_context, search_query)
         except Exception as e:
             logger.error("[routes] Context retrieval failed: %s\n%s", e, traceback.format_exc())
-            raise HTTPException(status_code=500, detail=f"Context retrieval error: {str(e)}")
+            raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
         try:
             system_prompt = build_system_prompt(request.channel, context_chunks)
@@ -113,7 +114,7 @@ async def chat(request: ChatRequest):
             messages = build_messages(system_prompt, history_dicts, user_message)
         except Exception as e:
             logger.error("[routes] Prompt building failed: %s\n%s", e, traceback.format_exc())
-            raise HTTPException(status_code=500, detail=f"Prompt build error: {str(e)}")
+            raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
         max_search_turns = 3
         search_turns = 0
@@ -121,14 +122,17 @@ async def chat(request: ChatRequest):
 
         while True:
             try:
-                response_text = await run_in_threadpool(generate, messages)
+                response_text = await generate(messages)
             except Exception as e:
                 logger.error("[routes] LLM generation failed: %s\n%s", e, traceback.format_exc())
-                raise HTTPException(status_code=500, detail=f"LLM generation error: {str(e)}")
+                raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
             # ── Stage 3: Extract tool call via Strict Pydantic JSON ─────────────────
             try:
-                parsed_output = LLMOutputSchema.model_validate_json(response_text)
+                # Strip markdown code fences that some LLMs wrap JSON in
+                response_text_stripped = re.sub(r'^```(?:json)?\s*', '', response_text)
+                response_text_stripped = re.sub(r'\s*```$', '', response_text_stripped)
+                parsed_output = LLMOutputSchema.model_validate_json(response_text_stripped)
                 
                 llm_text_response = parsed_output.response
                 if parsed_output.tool_call:
@@ -226,8 +230,9 @@ async def chat(request: ChatRequest):
                     date = args.get("date", "")
                     booking_time = args.get("time", "")
                     email = args.get("email", "")
+                    name = args.get("name", "")
 
-                    if not all([date, booking_time, email]):
+                    if not all([date, booking_time, email, name]):
                         missing = []
                         if not date:
                             missing.append("date (YYYY-MM-DD)")
@@ -235,6 +240,8 @@ async def chat(request: ChatRequest):
                             missing.append("time (HH:MM)")
                         if not email:
                             missing.append("email")
+                        if not name:
+                            missing.append("your full name")
                         return ChatResponse(
                             response=(
                                 f"To book the interview, I still need: {', '.join(missing)}. "
@@ -298,7 +305,7 @@ async def chat(request: ChatRequest):
         raise
     except Exception as e:
         logger.error("[routes] Unhandled error in /v1/chat: %s\n%s", e, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @router.get("/v1/availability")
@@ -395,8 +402,14 @@ async def vapi_chat_completions(req: dict):
                 chunk_id = f"chatcmpl-{int(time.time())}"
                 yield f"data: {json.dumps({'id': chunk_id, 'object': 'chat.completion.chunk', 'choices': [{'delta': {'role': 'assistant'}}]})}\n\n"
                 
-                # We yield the final ai_text as one chunk to satisfy SSE
-                yield f"data: {json.dumps({'id': chunk_id, 'object': 'chat.completion.chunk', 'choices': [{'delta': {'content': ai_text}}]})}\n\n"
+                # Yield tokens to simulate streaming
+                import asyncio
+                words = ai_text.split(" ")
+                for i, word in enumerate(words):
+                    content = word + (" " if i < len(words) - 1 else "")
+                    yield f"data: {json.dumps({'id': chunk_id, 'object': 'chat.completion.chunk', 'choices': [{'delta': {'content': content}}]})}\n\n"
+                    await asyncio.sleep(0.01)
+                
                 yield f"data: {json.dumps({'id': chunk_id, 'object': 'chat.completion.chunk', 'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
                 yield "data: [DONE]\n\n"
                 

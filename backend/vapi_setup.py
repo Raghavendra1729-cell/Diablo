@@ -1,9 +1,13 @@
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import requests
 import json
-import sys
 import time
 from typing import Optional
+
+from src.prompts.prompt_templates import TOOL_SCHEMAS, build_system_prompt
 
 
 class VapiAssistant:
@@ -59,124 +63,24 @@ class VapiAssistant:
         return self._request("GET", f"/assistant?limit={limit}")
 
 
+def _tools_to_openai_format(tool_schemas: list[dict]) -> list[dict]:
+    """Convert our internal TOOL_SCHEMAS to OpenAI function-calling format."""
+    openai_tools = []
+    for t in tool_schemas:
+        openai_tools.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"],
+            },
+        })
+    return openai_tools
+
+
 def build_booking_tools() -> list:
-    """Return tool definitions for booking-related actions."""
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "check_availability",
-                "description": "Check available time slots for a given date and service.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "date": {
-                            "type": "string",
-                            "description": "Date in YYYY-MM-DD format.",
-                        },
-                        "service": {
-                            "type": "string",
-                            "description": "Service type (e.g. consultation, follow-up, support).",
-                        },
-                    },
-                    "required": ["date", "service"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "book_appointment",
-                "description": "Book an appointment at a specific date and time.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "date": {
-                            "type": "string",
-                            "description": "Date in YYYY-MM-DD format.",
-                        },
-                        "time": {
-                            "type": "string",
-                            "description": "Time in HH:MM format (24-hour).",
-                        },
-                        "service": {
-                            "type": "string",
-                            "description": "Service type to book.",
-                        },
-                        "customer_name": {
-                            "type": "string",
-                            "description": "Full name of the customer.",
-                        },
-                        "customer_email": {
-                            "type": "string",
-                            "description": "Email address for confirmation.",
-                        },
-                        "notes": {
-                            "type": "string",
-                            "description": "Optional additional notes or special requests.",
-                        },
-                    },
-                    "required": [
-                        "date",
-                        "time",
-                        "service",
-                        "customer_name",
-                        "customer_email",
-                    ],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "cancel_appointment",
-                "description": "Cancel an existing appointment by booking reference.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "booking_ref": {
-                            "type": "string",
-                            "description": "The booking reference ID to cancel.",
-                        },
-                        "customer_email": {
-                            "type": "string",
-                            "description": "Email used during booking for verification.",
-                        },
-                    },
-                    "required": ["booking_ref", "customer_email"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "reschedule_appointment",
-                "description": "Move an existing appointment to a new date/time.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "booking_ref": {
-                            "type": "string",
-                            "description": "The booking reference ID to reschedule.",
-                        },
-                        "new_date": {
-                            "type": "string",
-                            "description": "New date in YYYY-MM-DD format.",
-                        },
-                        "new_time": {
-                            "type": "string",
-                            "description": "New time in HH:MM format (24-hour).",
-                        },
-                        "customer_email": {
-                            "type": "string",
-                            "description": "Email used during booking for verification.",
-                        },
-                    },
-                    "required": ["booking_ref", "new_date", "new_time", "customer_email"],
-                },
-            },
-        },
-    ]
+    """Return tool definitions sourced from the canonical TOOL_SCHEMAS in prompt_templates."""
+    return _tools_to_openai_format(TOOL_SCHEMAS)
 
 
 def build_assistant_config(
@@ -232,11 +136,9 @@ def build_assistant_config(
             "messages": [
                 {
                     "role": "system",
-                    "content": system_prompt or (
-                        "You are a helpful, professional voice assistant. "
-                        "Speak clearly and concisely. Help users check availability, "
-                        "book, reschedule, or cancel appointments. Confirm all "
-                        "details before finalizing any booking."
+                    "content": system_prompt or build_system_prompt(
+                        channel="voice",
+                        context_chunks=["No context loaded — use search_knowledge_base tool."],
                     ),
                 },
             ],
@@ -282,24 +184,18 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # --- Build config ---
+    # Use the canonical persona system prompt from prompt_templates
+    persona_prompt = build_system_prompt(
+        channel="voice",
+        context_chunks=["No context loaded — use search_knowledge_base tool for facts."],
+    )
     assistant_config = build_assistant_config(
-        name="Booking Assistant",
+        name="Linga AI Assistant",
         backend_url=BACKEND_URL,
-        first_message="Hello! I'm your booking assistant. How can I help you today?",
+        first_message="Hello! I'm Linga's AI assistant. How can I help you today?",
         voice_provider="vapi",
         voice_id="Elliot",
-        system_prompt=(
-            "You are a friendly and efficient voice assistant for booking appointments. "
-            "Follow this workflow:\n"
-            "1. Greet the caller and ask how you can help.\n"
-            "2. If they want to book: ask for the service type, then check availability "
-            "using the check_availability tool.\n"
-            "3. Present available time slots clearly — no more than 5 at a time.\n"
-            "4. Once they pick a slot, collect name and email, then call book_appointment.\n"
-            "5. Confirm the booking reference with the customer.\n"
-            "6. For cancellations or reschedules: verify identity with email first.\n"
-            "7. Keep responses under 2 sentences. Speak naturally, not like a robot."
-        ),
+        system_prompt=persona_prompt,
         silence_timeout_seconds=30,
         max_duration_seconds=900,
         end_call_phrases=[

@@ -7,11 +7,12 @@ NOTE: Ingestion is NOT run on startup. Run once explicitly:
 import os
 import time
 import logging
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from src.api.routes import router
 from src.config import SERVER_HOST, SERVER_PORT
 
@@ -21,11 +22,30 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 
+# ── Simple in-memory rate limiter (10 req/min per IP for /v1/chat) ──────────
+_RATE_LIMIT_WINDOW = 60       # seconds
+_RATE_LIMIT_MAX = 10          # max requests per window per IP
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: verify Qdrant collection is ready. Shutdown: no-op."""
     from src.vectordb.vector_store import check_collection_ready
+
+    from src.config import validate_env
+
+    validate_env()
+
+    # Pre-warm embedding models so first request isn't slow
+    logger.info("[startup] Pre-warming embedding models...")
+    try:
+        from src.embeddings.embedder import get_embedder, get_sparse_embedder
+        get_embedder()        # triggers lazy load of dense model
+        get_sparse_embedder() # triggers lazy load of sparse model
+        logger.info("[startup] ✅ Embedding models warmed up.")
+    except Exception as exc:
+        logger.warning("[startup] ⚠️ Could not pre-warm embedding models: %s", exc)
 
     logger.info("[startup] Checking Qdrant collection health...")
     try:
@@ -55,10 +75,43 @@ app = FastAPI(title="RAG Persona API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+import time as _time
+
+# Add a periodic full cleanup every 5 minutes
+_last_full_cleanup = 0.0
+
+@app.middleware("http")
+async def rate_limit_chat(request: Request, call_next):
+    """Rate-limit /v1/chat to _RATE_LIMIT_MAX requests per _RATE_LIMIT_WINDOW per IP."""
+    global _last_full_cleanup
+    if request.url.path == "/v1/chat" and request.method == "POST":
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        
+        # Full cleanup every 5 minutes
+        if now - _last_full_cleanup > 300:
+            _last_full_cleanup = now
+            stale_ips = [ip for ip, times in _rate_limit_store.items() 
+                        if not times or times[-1] < now - _RATE_LIMIT_WINDOW]
+            for ip in stale_ips:
+                del _rate_limit_store[ip]
+        
+        window_start = now - _RATE_LIMIT_WINDOW
+        # Prune old entries
+        _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if t > window_start]
+        if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_MAX:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again in a minute."},
+            )
+        _rate_limit_store[client_ip].append(now)
+    return await call_next(request)
 
 
 @app.middleware("http")

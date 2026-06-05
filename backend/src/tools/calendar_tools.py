@@ -23,6 +23,15 @@ from src.tools.base import ToolResult
 
 logger = logging.getLogger(__name__)
 
+_http_client: httpx.AsyncClient | None = None
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Return a shared httpx client with connection pooling."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=15.0)
+    return _http_client
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -141,17 +150,17 @@ async def check_availability(
     end_time = end_dt.isoformat()
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{CAL_BASE_URL}/slots",
-                params={
-                    "eventTypeId": CAL_EVENT_TYPE_ID,
-                    "start": start_time,
-                    "end": end_time,
-                },
-                headers=_headers(_CAL_API_VERSION_SLOTS),
-            )
-            response.raise_for_status()
+        client = _get_http_client()
+        response = await client.get(
+            f"{CAL_BASE_URL}/slots",
+            params={
+                "eventTypeId": CAL_EVENT_TYPE_ID,
+                "start": start_time,
+                "end": end_time,
+            },
+            headers=_headers(_CAL_API_VERSION_SLOTS),
+        )
+        response.raise_for_status()
 
         data = response.json()
         # v2 response shape: {"data": {"2026-06-10": [{"start": "..."}, ...]}}
@@ -276,31 +285,31 @@ async def book_slot(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                f"{CAL_BASE_URL}/bookings",
-                headers=_headers(_CAL_API_VERSION_BOOKINGS),
-                json=payload,
+        client = _get_http_client()
+        response = await client.post(
+            f"{CAL_BASE_URL}/bookings",
+            headers=_headers(_CAL_API_VERSION_BOOKINGS),
+            json=payload,
+        )
+
+        if response.status_code in (400, 409):
+            return ToolResult(
+                success=False,
+                error="slot_unavailable",
+                message="That slot is no longer available. Please choose another time.",
             )
 
-            if response.status_code in (400, 409):
-                return ToolResult(
-                    success=False,
-                    error="slot_unavailable",
-                    message="That slot is no longer available. Please choose another time.",
-                )
-
-            if response.status_code == 422:
-                try:
-                    err_body = response.json()
-                    detail = err_body.get("message") or err_body.get("error") or str(err_body)
-                except Exception:
-                    detail = response.text[:300]
-                return ToolResult(
-                    success=False,
-                    error="validation_error",
-                    message=f"Booking validation failed: {detail}",
-                )
+        if response.status_code == 422:
+            try:
+                err_body = response.json()
+                detail = err_body.get("message") or err_body.get("error") or str(err_body)
+            except Exception:
+                detail = response.text[:300]
+            return ToolResult(
+                success=False,
+                error="validation_error",
+                message=f"Booking validation failed: {detail}",
+            )
 
             response.raise_for_status()
 
@@ -370,19 +379,19 @@ async def cancel_booking(
         )
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{CAL_BASE_URL}/bookings/{booking_id}/cancel",
-                headers=_headers(_CAL_API_VERSION_BOOKINGS),
-                json={"cancellationReason": reason},
-            )
+        client = _get_http_client()
+        response = await client.post(
+            f"{CAL_BASE_URL}/bookings/{booking_id}/cancel",
+            headers=_headers(_CAL_API_VERSION_BOOKINGS),
+            json={"cancellationReason": reason},
+        )
 
-            if response.status_code == 404:
-                return ToolResult(
-                    success=False,
-                    error="not_found",
-                    message=f"Booking {booking_id} not found.",
-                )
+        if response.status_code == 404:
+            return ToolResult(
+                success=False,
+                error="not_found",
+                message=f"Booking {booking_id} not found.",
+            )
 
             response.raise_for_status()
 
@@ -450,16 +459,16 @@ async def reschedule_booking(
         )
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                f"{CAL_BASE_URL}/bookings/{booking_id}/reschedule",
-                headers=_headers(_CAL_API_VERSION_BOOKINGS),
-                json={
-                    "start": new_start_iso,
-                    "reschedulingReason": reason,
-                },
-            )
-            response.raise_for_status()
+        client = _get_http_client()
+        response = await client.post(
+            f"{CAL_BASE_URL}/bookings/{booking_id}/reschedule",
+            headers=_headers(_CAL_API_VERSION_BOOKINGS),
+            json={
+                "start": new_start_iso,
+                "reschedulingReason": reason,
+            },
+        )
+        response.raise_for_status()
 
         return ToolResult(
             success=True,
@@ -513,13 +522,13 @@ async def list_bookings(status: str = "upcoming") -> ToolResult:
         )
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{CAL_BASE_URL}/bookings",
-                params={"status": status},
-                headers=_headers(_CAL_API_VERSION_BOOKINGS),
-            )
-            response.raise_for_status()
+        client = _get_http_client()
+        response = await client.get(
+            f"{CAL_BASE_URL}/bookings",
+            params={"status": status},
+            headers=_headers(_CAL_API_VERSION_BOOKINGS),
+        )
+        response.raise_for_status()
 
         data = response.json()
         raw_bookings = data.get("data", [])

@@ -5,7 +5,6 @@ import traceback
 from typing import Optional
 
 from fastembed import TextEmbedding, SparseTextEmbedding
-from fastembed.rerank.cross_encoder import TextCrossEncoder
 
 from src.config import EMBED_MODEL
 
@@ -13,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 _embedder: Optional[TextEmbedding] = None
 _sparse_embedder: Optional[SparseTextEmbedding] = None
-_reranker: Optional[TextCrossEncoder] = None
 _embedder_lock = threading.Lock()
 
 
@@ -40,17 +38,6 @@ def get_sparse_embedder() -> SparseTextEmbedding:
                 logger.info("[embedder] Sparse model loaded.")
     return _sparse_embedder
 
-
-def get_reranker() -> TextCrossEncoder:
-    """Return cached TextCrossEncoder instance."""
-    global _reranker
-    if _reranker is None:
-        with _embedder_lock:
-            if _reranker is None:
-                logger.info("[embedder] Loading fastembed cross-encoder: BAAI/bge-reranker-v2-m3")
-                _reranker = TextCrossEncoder(model_name="Xenova/ms-marco-MiniLM-L-6-v2")
-                logger.info("[embedder] Cross-encoder loaded.")
-    return _reranker
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -93,21 +80,3 @@ def embed_query_sparse(query: str) -> dict:
         raise
 
 
-def rerank_chunks(query: str, chunks: list[str], top_k: int = 5) -> list[str]:
-    """Rerank chunks for a query using the cross-encoder."""
-    try:
-        if not chunks:
-            return []
-        reranker = get_reranker()
-        scores = list(reranker.rerank(query, chunks))
-
-        scored_chunks = list(zip(scores, chunks))
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-
-        # Do not apply a hard logit threshold since cross-encoder logits are unbounded
-        filtered_chunks = [chunk for score, chunk in scored_chunks]
-
-        return filtered_chunks[:top_k]
-    except Exception as e:
-        logger.error("[embedder] rerank_chunks failed: %s\n%s", e, traceback.format_exc())
-        raise

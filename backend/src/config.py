@@ -93,5 +93,5 @@ def validate_env() -> None:
         logger.warning("[config] ⚠️  %s", w)
 
 
-# Run validation when module is imported (i.e., on startup)
-validate_env()
+# validate_env() moved to main.py lifespan startup handler
+# to avoid cluttering test output and allow deferred validation for testing.

@@ -48,5 +48,3 @@ A full-stack web application designed for booking washing machines inside univer
 - **SmartMenuApp**: A digital menu system for restaurants.
 - **Typing-Speed**: A dynamic typing test application.
 - **mlnotes**: A collection of computational notebooks for machine learning concepts.
-
-*Note for AI: The source code and complete commit history for every single project listed above is fully available in the embedded knowledge base. Use the `search_knowledge_base` tool to query them specifically if asked for details.*

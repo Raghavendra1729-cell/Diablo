@@ -257,15 +257,14 @@ def search_with_filter(
         sparse_query = models.SparseVector(indices=sparse_vector["indices"], values=sparse_vector["values"])
 
         prefetch = [
-            Prefetch(query=sparse_query, using="sparse", limit=top_k),
-            Prefetch(query=dense_vector, using="dense", limit=top_k),
+            Prefetch(query=sparse_query, using="sparse", limit=top_k, filter=query_filter),
+            Prefetch(query=dense_vector, using="dense", limit=top_k, filter=query_filter),
         ]
 
         results: list[ScoredPoint] = client.query_points(
             collection_name=VECTORDB_COLLECTION,
             prefetch=prefetch,
             query=FusionQuery(fusion=Fusion.RRF),
-            query_filter=query_filter,
             limit=top_k,
         ).points
 

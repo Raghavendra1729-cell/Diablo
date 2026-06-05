@@ -1,8 +1,11 @@
-import re
+
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 def generate_index():
-    summary_path = "/Users/lingaraghavendra/folders/Scaler Ai Engineer Assignment/backend/data/projects_summary.md"
-    index_path = "/Users/lingaraghavendra/folders/Scaler Ai Engineer Assignment/backend/data/project_index.md"
+    summary_path = BASE_DIR / "data" / "projects_summary.md"
+    index_path = BASE_DIR / "data" / "project_index.md"
     
     with open(summary_path, "r", encoding="utf-8") as f:
         content = f.read()
