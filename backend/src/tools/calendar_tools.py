@@ -12,6 +12,8 @@ If CAL_API_KEY is not set, each function returns a mock success response
 so the rest of the pipeline can be developed / tested without live credentials.
 """
 import logging
+import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -240,8 +242,40 @@ async def book_slot(
     Mock behaviour (no CAL_API_KEY):
         Returns success with booking_id="mock-12345".
     """
+    # Pre-validate locally before any API call
+    try:
+        today = datetime.now(ZoneInfo(timezone)).date()
+    except Exception:
+        today = datetime.now(_IST).date()
+    
+    try:
+        requested_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return ToolResult(success=False, error="invalid_date",
+                          message=f"Date '{date}' is not in YYYY-MM-DD format.")
+    if requested_date < today:
+        return ToolResult(success=False, error="past_date",
+                          message="Cannot book in the past. Please choose a future date.")
+    if not re.match(r"^\d{2}:\d{2}$", time):
+        return ToolResult(success=False, error="invalid_time",
+                          message=f"Time '{time}' must be HH:MM format (e.g. 14:00).")
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return ToolResult(success=False, error="invalid_email",
+                          message=f"'{email}' does not look like a valid email address.")
+    if not name.strip():
+        return ToolResult(success=False, error="missing_name",
+                          message="A name is required to complete the booking.")
+
     if not CAL_API_KEY:
-        logger.warning("[tools/calendar] CAL_API_KEY not set — returning mock booking.")
+        mock_allowed = os.getenv("ALLOW_MOCK_CALENDAR", "false").lower() == "true"
+        if not mock_allowed:
+            return ToolResult(
+                success=False,
+                error="config_error",
+                message="Calendar booking is not configured. Please contact the administrator.",
+            )
+        # Only in explicit mock mode:
+        logger.warning("[tools/calendar] MOCK MODE active — booking_id=mock-12345")
         return ToolResult(
             success=True,
             data={
@@ -251,10 +285,7 @@ async def book_slot(
                 "email": email,
                 "meet_url": "",
             },
-            message=(
-                f"Interview confirmed for {date} at {time}. "
-                f"Confirmation sent to {email}."
-            ),
+            message=f"[MOCK] Interview confirmed for {date} at {time}. (This is a test booking.)",
         )
 
     try:

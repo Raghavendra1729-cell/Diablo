@@ -89,6 +89,15 @@ def validate_env() -> None:
             "Set INGEST_ADMIN_KEY to enable remote re-ingestion."
         )
 
+    if not CAL_API_KEY:
+        if os.getenv("ALLOW_MOCK_CALENDAR", "false").lower() != "true":
+            raise RuntimeError(
+                "CAL_API_KEY is not set. Calendar booking is disabled. "
+                "Set ALLOW_MOCK_CALENDAR=true to run without a real calendar."
+            )
+        else:
+            warnings.append("CAL_API_KEY is not set — running with MOCK calendar data.")
+
     for w in warnings:
         logger.warning("[config] %s", w)
 

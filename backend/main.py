@@ -113,62 +113,45 @@ async def guard_llm_endpoints(request: Request, call_next):
     now = time.time()
 
     # ── LAYER 1: in-flight concurrency guard ─────────────────────────────────
-    # DISABLED: Vapi needs to send overlapping requests when a user interrupts
-    # the agent mid-sentence, triggering a new turn before the old turn finishes.
-    # if client_ip in _ip_in_flight:
-    #     logger.warning(
-    #         "[guard] IN-FLIGHT BLOCKED %s → %s", client_ip, request.url.path
-    #     )
-    #     return JSONResponse(
-    #         status_code=429,
-    #         content={
-    #             "detail": "A request is already being processed. Please wait.",
-    #             "error": "request_in_flight",
-    #         },
-    #         headers={"Retry-After": "30"},
-    #     )
+    # INTENTIONALLY DISABLED: Vapi needs to send overlapping requests when a user
+    # interrupts the agent mid-sentence, triggering a new turn before the old
+    # turn finishes. A hard in-flight block would reject those legitimate retries.
+    # The sliding-window rate limit below handles sustained abuse instead.
 
-    # ── LAYER 2: sliding window rate limit ───────────────────────────────
-    # DISABLED: Ensuring absolutely zero interruptions during the Loom video recording.
-    # if now - _last_full_cleanup > 300:
-    #     _last_full_cleanup = now
-    #     for ip in [
-    #         k for k, v in _rate_limit_store.items()
-    #         if not v or v[-1] < now - _RATE_LIMIT_WINDOW
-    #     ]:
-    #         del _rate_limit_store[ip]
-    #
-    # window_start = now - _RATE_LIMIT_WINDOW
-    # _rate_limit_store[client_ip] = [
-    #     t for t in _rate_limit_store[client_ip] if t > window_start
-    # ]
-    # count = len(_rate_limit_store[client_ip])
-    # if count >= _RATE_LIMIT_MAX:
-    #     logger.warning(
-    #         "[rate_limit] %s exceeded %d req/min on %s",
-    #         client_ip, _RATE_LIMIT_MAX, request.url.path,
-    #     )
-    #     return JSONResponse(
-    #         status_code=429,
-    #         content={
-    #             "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
-    #             "error": "rate_limit_exceeded",
-    #         },
-    #         headers={"Retry-After": "60"},
-    #     )
-    #
-    # _rate_limit_store[client_ip].append(now)
-    # _ip_in_flight.add(client_ip)
-    
-    logger.info(
-        "[guard] OK %s → %s  (Rate limiting disabled for video)",
-        client_ip, request.url.path
-    )
-    
-    try:
-        return await call_next(request)
-    finally:
-        _ip_in_flight.discard(client_ip)
+    # ── LAYER 2: sliding window rate limit ───────────────────────────────────
+    # 20 requests per 60 s per IP — stops abuse storms without blocking Vapi barge-in.
+    if now - _last_full_cleanup > 300:
+        _last_full_cleanup = now
+        for ip in [
+            k for k, v in _rate_limit_store.items()
+            if not v or v[-1] < now - _RATE_LIMIT_WINDOW
+        ]:
+            del _rate_limit_store[ip]
+
+    window_start = now - _RATE_LIMIT_WINDOW
+    _rate_limit_store[client_ip] = [
+        t for t in _rate_limit_store[client_ip] if t > window_start
+    ]
+    count = len(_rate_limit_store[client_ip])
+    if count >= _RATE_LIMIT_MAX:
+        logger.warning(
+            "[rate_limit] %s exceeded %d req/min on %s",
+            client_ip, _RATE_LIMIT_MAX, request.url.path,
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
+                "error": "rate_limit_exceeded",
+            },
+            headers={"Retry-After": "60"},
+        )
+
+    _rate_limit_store[client_ip].append(now)
+
+    logger.debug("[guard] OK %s → %s", client_ip, request.url.path)
+
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -187,6 +170,20 @@ async def log_request_latency(request: Request, call_next):
             "[%s] %s — %s — %.3fs",
             request.method, request.url.path, status_code, elapsed,
         )
+
+
+def _vapi_response(text: str) -> dict:
+    """Build a non-streaming OpenAI-compatible response."""
+    return {
+        "id": f"chatcmpl-{int(time.time())}",
+        "object": "chat.completion",
+        "model": "custom-vapi-backend",
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": text},
+            "finish_reason": "stop",
+        }],
+    }
 
 
 app.include_router(router)
@@ -213,4 +210,4 @@ if os.path.isdir(frontend_dist):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", str(SERVER_PORT)))
-    uvicorn.run("main:app", host=SERVER_HOST, port=port, reload=True)
+    uvicorn.run("main:app", host=SERVER_HOST, port=port, reload=False)

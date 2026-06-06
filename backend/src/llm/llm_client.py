@@ -22,25 +22,19 @@ from src.config import (
 
 logger = logging.getLogger(__name__)
 
-_client: Optional[OpenAI] = None
-_client_lock = threading.Lock()
-
-LLM_TIMEOUT_SECONDS = 25  # Must be < Vapi's timeout (~30s) so we respond before it retries
+LLM_TIMEOUT_VOICE = 10   # aggressive; allows 2 tool turns inside 30s Vapi window
+LLM_TIMEOUT_WEB   = 25  # web has no strict deadline
 
 
-def get_client() -> OpenAI:
-    """Return cached OpenAI client configured for HF endpoint. Thread-safe."""
-    global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                logger.info("[llm] Initialising OpenAI-compatible client → %s", LLM_BASE_URL)
-                _client = OpenAI(
-                    base_url=LLM_BASE_URL,
-                    api_key=HF_TOKEN,
-                    timeout=LLM_TIMEOUT_SECONDS,
-                )
-    return _client
+def get_client(timeout: int) -> OpenAI:
+    """Return OpenAI client configured for HF endpoint."""
+    # We create a new client or rely on connection pooling if possible.
+    # Creating a new client per request is fine here, or we can just pass timeout.
+    return OpenAI(
+        base_url=LLM_BASE_URL,
+        api_key=HF_TOKEN,
+        timeout=timeout,
+    )
 
 
 async def generate(messages: list[dict], max_retries: int = 1, channel: str = "web") -> str:
@@ -67,7 +61,8 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
     tried_json_fallback = False
     for attempt in range(max_retries + 1):
         try:
-            client = get_client()
+            timeout = LLM_TIMEOUT_VOICE if channel == "voice" else LLM_TIMEOUT_WEB
+            client = get_client(timeout)
             create_kwargs: dict = {
                 "model": LLM_MODEL,
                 "messages": messages,
@@ -85,6 +80,11 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
             return (content or "").strip()
         except Exception as exc:
             last_exc = exc
+            exc_str = str(exc).lower()
+            if channel == "voice" and "timeout" in exc_str:
+                logger.warning("[llm] TimeoutError for voice channel. Using graceful fallback.")
+                return '{"response": "One moment — I am still consulting his records. Could you repeat your question?", "tool_call": null}'
+
             # If json_object causes errors, fall back to plain text on next attempt
             if use_json and not tried_json_fallback:
                 logger.warning(

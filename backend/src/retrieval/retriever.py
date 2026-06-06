@@ -18,9 +18,9 @@ _retrieval_cache: dict[str, tuple[float, list[str]]] = {}
 _CACHE_TTL = 300  # 5 minutes
 _CACHE_MAX_SIZE = 64
 
-def _get_cached(query: str, top_k: int) -> list[str] | None:
+def _get_cached(query: str, top_k: int, force_doc_type: str | None = None, repo_name: str | None = None) -> list[str] | None:
     """Return cached result if fresh, else None."""
-    key = f"{query}:{top_k}"
+    key = f"{query}:{top_k}:{force_doc_type or ''}:{repo_name or ''}"
     if key in _retrieval_cache:
         ts, result = _retrieval_cache[key]
         if time.time() - ts < _CACHE_TTL:
@@ -29,9 +29,9 @@ def _get_cached(query: str, top_k: int) -> list[str] | None:
         del _retrieval_cache[key]
     return None
 
-def _set_cache(query: str, top_k: int, result: list[str]) -> None:
+def _set_cache(query: str, top_k: int, result: list[str], force_doc_type: str | None = None, repo_name: str | None = None) -> None:
     """Store result in cache, evicting oldest if full."""
-    key = f"{query}:{top_k}"
+    key = f"{query}:{top_k}:{force_doc_type or ''}:{repo_name or ''}"
     if len(_retrieval_cache) >= _CACHE_MAX_SIZE:
         oldest_key = next(iter(_retrieval_cache))
         del _retrieval_cache[oldest_key]
@@ -233,7 +233,7 @@ def _retrieve_context_impl(
     repo_name: str | None = None,
 ) -> list[str]:
     effective_top_k = top_k if top_k is not None else RETRIEVAL_TOP_K
-    cached = _get_cached(query, effective_top_k)
+    cached = _get_cached(query, effective_top_k, force_doc_type, repo_name)
     if cached is not None:
         return cached
 
@@ -327,9 +327,9 @@ def _retrieve_context_impl(
             logger.error("[retriever] Result formatting error: %s\n%s", e, traceback.format_exc())
             final_results = [hit["text"] for hit in hits[:effective_top_k]]
 
-        logger.info("[retriever] Retrieved and reranked %d chunks for query.", len(final_results))
+        logger.info("[retriever] Retrieved %d chunks for query.", len(final_results))
         res = final_results if final_results else [NO_CONTEXT_SENTINEL]
-        _set_cache(query, effective_top_k, res)
+        _set_cache(query, effective_top_k, res, force_doc_type, repo_name)
         return res
 
     except Exception as e:

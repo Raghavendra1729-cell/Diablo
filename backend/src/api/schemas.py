@@ -22,7 +22,7 @@ class LLMOutputSchema(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    history: list[Message] = []
+    history: list[Message] = Field(default_factory=list)
     channel: Literal["voice", "web"] = "web"
 
 

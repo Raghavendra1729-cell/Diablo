@@ -49,8 +49,15 @@ _REASONING_RETRY_MSG = (
 )
 
 _JSON_RETRY_MSG = (
-    'Output valid JSON: {"response": "...", "tool_call": null} or '
+    '{"response": "...", "tool_call": null} or '
     '{"response": "...", "tool_call": {"name": "X", "arguments": {...}}}'
+)
+
+# Compiled once at module load — used in Stage 2 retrieval bypass
+_SKIP_RETRIEVAL = re.compile(
+    r"^(hi|hello|hey|yes|no|ok|okay|correct|sure|thanks|thank you|"
+    r"book|schedule|cancel|reschedule|who are you|what is your name)[^a-z]*$",
+    re.IGNORECASE
 )
 
 
@@ -87,12 +94,21 @@ def _format_voice_booking_msg(result_msg: str, date: str, time_str: str, email: 
 
 # ── Eager email normalization (voice only) ────────────────────────────────────
 
+_EMAIL_INDICATORS = re.compile(
+    r'\b(?:email|mail|reach\s+me\s+at|contact\s+me\s+at|it\s+is|address\s+is)\b',
+    re.IGNORECASE,
+)
+_HAS_DOT_AT = re.compile(r'\b(dot|at|@)\b', re.IGNORECASE)
+
 async def _normalize_email_in_message(user_message: str) -> tuple[str, str | None]:
     """Detect and normalize spelled-out emails in user message.
 
     Returns (updated_message, normalized_email_or_None).
     Injects [Email normalized: X] hint so LLM presents clean email.
     """
+    if not _HAS_DOT_AT.search(user_message):
+        return user_message, None
+
     clean_email, raw_fragment = extract_from_message(user_message)
     if clean_email:
         logger.info("[routes] Eager email normalization: %r → %r",
@@ -101,7 +117,7 @@ async def _normalize_email_in_message(user_message: str) -> tuple[str, str | Non
 
     if raw_fragment:
         clean_email = await llm_fallback(raw_fragment)
-        if clean_email:
+        if clean_email and clean_email.upper() != "UNKNOWN":
             logger.info("[routes] LLM fallback email: %r → %r", raw_fragment[:60], clean_email)
             return f"{user_message}\n[Email normalized: {clean_email}]", clean_email
 
@@ -177,7 +193,7 @@ async def health_check(ping_llm: bool = False):
         # Guard: only ping if explicitly required, not from monitoring loops
         logger.warning("[health] ping_llm=True called — this costs 1 LLM call. Use sparingly.")
         try:
-            client = get_client()
+            client = get_client(25)  # give 25s timeout
             await run_in_threadpool(
                 lambda: client.chat.completions.create(
                     model=LLM_MODEL,
@@ -189,6 +205,42 @@ async def health_check(ping_llm: bool = False):
             logger.warning("[health] LLM ping failed: %s", e)
             return {"status": "degraded", "message": "Backend running but LLM ping failed."}
     return {"status": "ok", "message": "Backend is running flawlessly"}
+
+
+@router.get("/ready")
+async def readiness_check():
+    from src.vectordb.vector_store import check_collection_ready
+    from src.config import CAL_API_KEY, HF_TOKEN, QDRANT_URL
+    
+    issues = []
+    rag_ready = False
+    try:
+        ready, count = check_collection_ready()
+        rag_ready = ready and count > 0
+        if not rag_ready:
+            issues.append(f"Qdrant empty ({count} points)")
+    except Exception as e:
+        issues.append(f"Qdrant unreachable: {e}")
+    
+    calendar_ready = bool(CAL_API_KEY)
+    if not calendar_ready:
+        issues.append("CAL_API_KEY missing")
+    
+    llm_ready = bool(HF_TOKEN)
+    if not llm_ready:
+        issues.append("HF_TOKEN missing")
+    
+    all_ready = rag_ready and calendar_ready and llm_ready
+    return JSONResponse(
+        status_code=200 if all_ready else 503,
+        content={
+            "ready": all_ready,
+            "rag_ready": rag_ready,
+            "calendar_ready": calendar_ready,
+            "llm_configured": llm_ready,
+            "issues": issues,
+        }
+    )
 
 
 @router.post("/v1/chat", response_model=ChatResponse)
@@ -215,12 +267,16 @@ async def chat(request: ChatRequest):
 
         # Stage 2: Retrieval
         try:
-            search_query = user_message
-            if request.history and len(user_message.split()) <= 15:
-                recent_user_msgs = [m.content for m in request.history[-3:] if m.role == "user"]
-                if recent_user_msgs:
-                    search_query = f"{' '.join(recent_user_msgs)} {user_message}"
-            context_chunks = await run_in_threadpool(retrieve_context, search_query)
+            if not (request.channel == "voice" and _SKIP_RETRIEVAL.match(user_message.strip())):
+                search_query = user_message
+                if request.history and len(user_message.split()) <= 15:
+                    recent_user_msgs = [m.content for m in request.history[-3:] if m.role == "user"]
+                    if recent_user_msgs:
+                        search_query = f"{' '.join(recent_user_msgs)} {user_message}"
+                context_chunks = await run_in_threadpool(retrieve_context, search_query)
+            else:
+                context_chunks = []
+                logger.info("[routes] Skipping retrieval for short/booking voice turn.")
         except Exception as e:
             logger.error("[routes] Context retrieval failed: %s\n%s", e, traceback.format_exc())
             raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
@@ -316,7 +372,7 @@ async def chat(request: ChatRequest):
 
         # Stage 5: Handle booking result
         if tool_call and result:
-            return _handle_booking_result(tool_name, tool_call, result, request.channel, normalized_email)
+            return await _handle_booking_result(tool_name, tool_call, result, request.channel, normalized_email)
 
         return ChatResponse(response=llm_text_response, tool_call=tool_call)
 
@@ -327,14 +383,14 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
-def _handle_booking_result(
+async def _handle_booking_result(
     tool_name: str,
     tool_call: dict,
     result,
     channel: str,
     normalized_email: str | None,
 ) -> ChatResponse:
-    """Process booking/cancel/reschedule tool results."""
+    """Process booking/cancel/reschedule tool results (async — _handle_slot_unavailable is async)."""
     args = tool_call.get("arguments", {})
 
     if tool_name in ("book_slot", "book_interview", "book_meeting"):
@@ -367,7 +423,7 @@ def _handle_booking_result(
             )
 
         if result.error == "slot_unavailable":
-            return _handle_slot_unavailable(date)
+            return await _handle_slot_unavailable(date)
 
         return ChatResponse(response=result.message)
 
@@ -463,7 +519,11 @@ def _vapi_response(text: str) -> dict:
         "id": f"chatcmpl-{int(time.time())}",
         "object": "chat.completion",
         "model": "custom-vapi-backend",
-        "choices": [{"message": {"role": "assistant", "content": text}}],
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": text},
+            "finish_reason": "stop",
+        }],
     }
 
 

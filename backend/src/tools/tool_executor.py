@@ -88,6 +88,17 @@ async def execute_tool(tool_call: dict[str, Any]) -> ToolResult:
         )
 
     fn = TOOL_REGISTRY[name]
+
+    # Normalize argument aliases — LLM sometimes emits variant names
+    _ARG_ALIASES: dict[str, str] = {
+        "time_slot": "time",        # book_slot expects `time`, LLM may say `time_slot`
+        "new_time": "new_time_slot",  # reschedule expects `new_time_slot`, LLM may say `new_time`
+    }
+    for alias, canonical in _ARG_ALIASES.items():
+        if alias in arguments and canonical not in arguments:
+            arguments[canonical] = arguments.pop(alias)
+            logger.debug("[tool_executor] Normalized arg alias '%s' → '%s'", alias, canonical)
+
     safe_args = {k: ("***" if k in ("email", "name") else v) for k, v in arguments.items()}
     logger.info("[tool_executor] Executing tool '%s' with args: %s", name, safe_args)
 

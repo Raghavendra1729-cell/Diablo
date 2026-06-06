@@ -31,41 +31,52 @@ _SPELLED_OUT_RUN = re.compile(
 )
 
 
-def fast_normalize(raw: str) -> Optional[str]:
-    """Fast algorithmic email normalization. Returns None if unresolvable.
+# Word-level substitution map — applied BEFORE space/char operations
+_WORD_SUBS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r'\bat\s+the\s+rate\b', re.IGNORECASE), ' at '),   # "at the rate" → "at"
+    (re.compile(r'\bhyphen\b', re.IGNORECASE), '-'),                # "hyphen" → "-"
+    (re.compile(r'\bdash\b', re.IGNORECASE), '-'),                  # "dash" → "-"
+    (re.compile(r'\bunderscore\b', re.IGNORECASE), '_'),            # "underscore" → "_"
+    (re.compile(r'\bslash\b', re.IGNORECASE), '/'),                 # "slash" → "/"  (rare)
+    (re.compile(r'\bperiod\b', re.IGNORECASE), '.'),                # "period" → "."
+    (re.compile(r'\bpoint\b', re.IGNORECASE), '.'),                 # "point" → "."
+    (re.compile(r'\bplus\b', re.IGNORECASE), '+'),                  # "plus" → "+"
+]
 
-    Handles common patterns without an LLM call:
-      "S-E-E-T-A dot 24 BCS 10250 at SST dot scaler dot com" → "seeta.24bcs10250@sst.scaler.com"
-      "john at gmail dot com" → "john@gmail.com"
-      "s a r a h dot c o n n o r at email dot com" → "sarah.connor@email.com"
-    """
+def fast_normalize(raw: str) -> Optional[str]:
+    """Fast algorithmic email normalization. Returns None if unresolvable."""
     if not raw or "@" in raw:
         return None  # Already has @ — caller does basic cleanup
 
     text = raw.lower().strip()
-    # Remove STT punctuation artifacts (periods after abbreviations, commas)
-    text = re.sub(r'[,\?;:!]', ' ', text)
 
-    # Replace " dot " variations → "."
+    # Step 0 — Remove STT punctuation artifacts
+    text = re.sub(r'[,?;:!]', ' ', text)
+
+    # Step 1 — Word-level substitutions FIRST (before any space/char ops)
+    for pattern, replacement in _WORD_SUBS:
+        text = pattern.sub(replacement, text)
+
+    # Step 2 — Replace " dot " / " period " variations → "."
     text = re.sub(r'\s*\.?\s*dot\s*\.?\s*', '.', text)
-    # Replace " at " variations → "@"
-    text = re.sub(r'\s*\.?\s*at\s*\.?\s*', '@', text)
+    # Step 3 — Replace " at " variations → "@"  (after "at the rate" already handled)
+    text = re.sub(r'\s*\.?\s*\bat\b\s*\.?\s*', '@', text)
 
-    # Remove dashes between alphanumeric chars: S-E-E-T-A → SEETA, 1-0-2-5-0 → 10250
-    # Lookahead/lookbehind avoids issues with consecutive dash-separated chars
-    text = re.sub(r'(?<=[a-zA-Z0-9])-(?=[a-zA-Z0-9])', '', text)
+    # Step 4 — Remove dashes between ALPHANUMERIC chars (letter-by-letter dashes)
+    #           But KEEP dashes that are now genuine separators (e.g. john-doe)
+    #           Heuristic: if it's a sequence of single chars separated by dashes, it's spelled-out
+    text = re.sub(r'\b(?:[a-z0-9]-)+[a-z0-9]\b', lambda m: m.group(0).replace('-', ''), text)
 
-    # Remove all spaces (joins "S E E T A" → "SEETA", "2 4" → "24")
+    # Step 5 — Remove all remaining spaces (joins spelled-out chars)
     text = text.replace(' ', '')
 
-    # Clean up artifacts
+    # Step 6 — Clean up double dots and leading/trailing junk
     while '..' in text:
         text = text.replace('..', '.')
     text = text.strip('.@')
 
     if '@' in text and '.' in text.split('@')[-1]:
         return text
-
     return None
 
 
@@ -105,7 +116,7 @@ async def llm_fallback(raw: str) -> Optional[str]:
         from src.config import LLM_MODEL, LLM_TOP_P
         from starlette.concurrency import run_in_threadpool
 
-        client = get_client()
+        client = get_client(10)  # 10s is enough for a 30-token email parse
         response = await run_in_threadpool(
             lambda: client.chat.completions.create(
                 model=LLM_MODEL,
@@ -113,11 +124,24 @@ async def llm_fallback(raw: str) -> Optional[str]:
                     {
                         "role": "system",
                         "content": (
-                            "Convert spelled-out email to proper format. "
-                            "Return ONLY the email, nothing else. "
-                            "Examples: "
-                            "'S E E T A dot 24 BCS at SST dot scaler dot com' → 'seeta.24bcs@sst.scaler.com', "
-                            "'john at gmail dot com' → 'john@gmail.com'"
+                            "You are an email address parser for voice transcription. "
+                            "The user spelled out or described their email address verbally. "
+                            "Convert it to a valid email address. "
+                            "Rules:\n"
+                            "- 'at' or 'at the rate' → @\n"
+                            "- 'dot' or 'period' or 'point' → .\n"
+                            "- 'hyphen' or 'dash' → -\n"
+                            "- 'underscore' → _\n"
+                            "- Spelled-out letters like 'j o h n' → 'john'\n"
+                            "- Dash-separated letters like 'j-o-h-n' → 'john'\n"
+                            "Output ONLY the email address with no spaces, no explanation, no quotes.\n"
+                            "If you cannot determine a valid email, output the word: UNKNOWN\n\n"
+                            "Examples:\n"
+                            "  'john hyphen doe at company dot com' → john-doe@company.com\n"
+                            "  'j o h n underscore doe at g mail dot com' → john_doe@gmail.com\n"
+                            "  'sarah dot connor at sky net dot org' → sarah.connor@skynet.org\n"
+                            "  'john at the rate gmail dot com' → john@gmail.com\n"
+                            "  'a b c 1 2 3 at example dot c o m' → abc123@example.com\n"
                         ),
                     },
                     {"role": "user", "content": f"Convert to email: {raw}"},
