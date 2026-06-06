@@ -351,12 +351,6 @@ async def cancel_booking(
     reason: str = "Cancelled via AI assistant",
     **kwargs
 ) -> ToolResult:
-    if not booking_id:
-        return ToolResult(
-            success=False,
-            error="missing_id",
-            message="Please provide a valid booking_id to cancel the meeting."
-        )
     """Cancel an existing Cal.com booking.
 
     Args:
@@ -369,6 +363,12 @@ async def cancel_booking(
     Mock behaviour (no CAL_API_KEY):
         Returns success immediately.
     """
+    if not booking_id:
+        return ToolResult(
+            success=False,
+            error="missing_id",
+            message="Please provide a valid booking_id to cancel the meeting."
+        )
     if not CAL_API_KEY:
         logger.warning("[tools/calendar] CAL_API_KEY not set — mock cancel.")
         return ToolResult(
@@ -424,12 +424,6 @@ async def reschedule_booking(
     reason: str = "Rescheduled via AI assistant",
     **kwargs
 ) -> ToolResult:
-    if not booking_id or not new_date or not new_time_slot:
-        return ToolResult(
-            success=False,
-            error="missing_args",
-            message="Please provide a valid booking_id, new_date, and new_time_slot to reschedule."
-        )
     """Reschedule an existing Cal.com booking to a new date/time.
 
     Args:
@@ -444,6 +438,12 @@ async def reschedule_booking(
     Mock behaviour (no CAL_API_KEY):
         Returns success immediately.
     """
+    if not booking_id or not new_date or not new_time_slot:
+        return ToolResult(
+            success=False,
+            error="missing_args",
+            message="Please provide a valid booking_id, new_date, and new_time_slot to reschedule."
+        )
     if not CAL_API_KEY:
         logger.warning("[tools/calendar] CAL_API_KEY not set — mock reschedule.")
         return ToolResult(

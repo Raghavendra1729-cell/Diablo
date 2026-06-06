@@ -8,87 +8,106 @@ app_port: 7860
 pinned: false
 ---
 
-# 🤖 Diablo - Autonomous Personal AI Agent
+# 🦀 Diablo — AI Agent for Linga Seetha Rama Raghavendra
 
-> **An end-to-end Voice & Chat AI Persona for Linga Seetha Rama Raghavendra**
+**Diablo** is an autonomous voice-and-chat AI persona representing **Linga Seetha Rama Raghavendra**, an AI Engineer based in Bengaluru. You can call it, chat with it, and book an interview — fully automated, zero human in the loop.
 
-Diablo is an autonomous agent designed to handle inbound technical interviews, discuss my background, analyze my GitHub repositories, and independently schedule meetings via my live calendar.
+It answers technical questions about Linga's background, skills, and 24+ GitHub repositories using RAG over his real resume and source code. It checks his live Cal.com calendar and books confirmed meetings independently.
+
+**Live at:** [raghav-1729-diablo-ai-agent.hf.space](https://raghav-1729-diablo-ai-agent.hf.space)
 
 ---
 
-## 🏗️ System Architecture
+## What It Does
 
-The system uses a **CRAG (Corrective Retrieval-Augmented Generation)** architecture connected to a React frontend and a Vapi.ai voice interface.
+- **Voice Agent** — Call the phone number. Diablo introduces itself, answers questions, handles interruptions, checks availability, and books meetings via a 2-step confirmation flow. Built on Vapi + DeepSeek V4 Flash.
+- **Chat Interface** — Visit the URL. Ask about Linga's education (BITS Pilani, Scaler), projects (ExpenseTracker, Saathi-App, Forge, 21 more), skills, and experience. Evidence-backed answers grounded in ingested resume and repo data.
+- **Live Calendar Booking** — Real Cal.com integration. Diablo checks available slots, proposes times, collects name/email (with STT error correction), confirms, and books. Confirmation email sent automatically.
+- **Guardrails** — Prompt injection, jailbreak, and off-topic detection via regex patterns. Stays on-message: discusses Linga's qualifications and scheduling only.
 
-```mermaid
-graph TD
-    A[User] -->|Web Chat| B(React Frontend)
-    A -->|Phone Call| C(Vapi Voice Agent)
-    
-    B --> D[FastAPI Backend]
-    C -->|Webhook/Tool Calls| D
-    
-    D -->|1. Regex Guardrails| E{Security Layer}
-    E -->|Pass| F[Query Router]
-    
-    F -->|Knowledge Query| G[Qdrant Vector DB]
-    G -->|Retrieve 4.2k Chunks| H[HuggingFace BGE-Small]
-    
-    F -->|Tool Intent| I[Tool Executor]
-    I -->|Availability| J[Cal.com API]
-    I -->|Booking| J
-    
-    H --> K[LLM Core]
-    I --> K
-    
-    K --> D
+---
+
+## Architecture
+
+```
+User (Phone) → Vapi.ai (STT/TTS) ──┐
+                                     ├──→ FastAPI Backend ──→ Qdrant Vector DB (4.2k chunks)
+User (Browser) → React Frontend ────┘         │                    │
+                                               │                    ▼
+                                          DeepSeek V4 Flash    BGE-Small Embeddings
+                                          (via HF Router)      (self-hosted)
+                                               │
+                                               ▼
+                                          Cal.com v2 API
+                                          (live booking)
 ```
 
-## 🚀 Setup Instructions
+**Pipeline:** Guardrails → Query Rewriting → Hybrid Retrieval (dense + sparse) → Re-rank → LLM with tool dispatch → Response
 
-### 1. Prerequisites
-- Python 3.10+
-- Node.js v18+
-- Accounts for: HuggingFace, Qdrant, Cal.com
+---
 
-### 2. Backend Setup
+## Latency
+
+Measured from deployed HuggingFace Space (warm):
+
+| Endpoint | Avg | Detail |
+|---|---|---|
+| Health | 1.0s | Backend ping |
+| Voice greeting | **2.0s** | 1 LLM call, no tools |
+| Voice availability | **4.1s** | 2 LLM calls (check + synthesize) |
+| Voice booking + email | **4.9s** | Eager email normalization + 2 LLM calls |
+
+Vapi uses streaming — first-token latency is lower. `DeepSeek-V4-Flash:fastest` variant keeps generation under 1s per call.
+
+---
+
+## Setup
+
 ```bash
+# Backend
 cd backend
-python -m venv venv
-source venv/bin/activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Create .env file with your API keys
-cp .env.example .env
-
-# Run data ingestion pipeline (RAG)
-python ingest.py
-
-# Start the server
+cp .env.example .env   # Add HF_TOKEN, CAL_API_KEY, QDRANT_URL
+python ingest.py        # Index resume + repos into Qdrant
 uvicorn main:app --host 0.0.0.0 --port 8000
-```
 
-### 3. Frontend Setup
-```bash
+# Frontend
 cd chat-ui
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
-## 💰 Cost Breakdown
-
-This architecture is aggressively optimized for cost by leveraging open-source embedding models and efficient vector storage.
-
-### Per Web Chat Session (~10 turns)
-- **Embeddings (BAAI/bge-small-en-v1.5):** $0.00 (Self-hosted/Free tier)
-- **Vector DB (Qdrant Cloud):** $0.00 (Free cluster)
-- **LLM Token Costs:** ~$0.005
-- **Total Chat Cost:** **~$0.005 per session**
-
-### Per Voice Call (~5 minutes)
-- **Vapi.ai (Transport/STT/TTS):** ~$0.05 / min
-- **LLM Token Costs:** ~$0.02
-- **Total Voice Cost:** **~$0.27 per call**
+Requires: Python 3.10+, Node 18+, accounts on HuggingFace, Qdrant Cloud, Cal.com, Vapi.ai.
 
 ---
+
+## Cost
+
+| | Per Session / Call |
+|---|---|
+| Web Chat (10 turns) | **~$0.005** |
+| Voice Call (5 min) | **~$0.27** |
+
+Embeddings and vector DB on free tiers. LLM via HuggingFace Router pay-per-token.
+
+---
+
+## Project Structure
+
+```
+backend/src/
+├── api/           routes, schemas
+├── llm/           OpenAI client, output parser
+├── prompts/       channel-specific system prompts (voice/web)
+├── tools/         calendar (Cal.com v2), RAG search, tool dispatch
+├── utils/         email normalizer, guardrails
+├── retrieval/     hybrid dense+sparse retrieval
+├── embeddings/    BGE-small, BM25
+├── chunking/      recursive text splitter
+├── ingestion/     resume + repo loader
+└── vectordb/      Qdrant client
+```
+
+---
+
 *Built for the Scaler AI Engineer Screening Assignment.*
