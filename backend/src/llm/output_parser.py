@@ -85,6 +85,8 @@ def clean_voice_text(raw: str) -> str:
         return "I'm having trouble processing that."
 
     text = raw
+    # Strip <think> reasoning blocks
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     # Strip JSON objects and fragments
     text = re.sub(r'\{[^}]*\}', '', text)
     text = re.sub(r'\"[a-z_]+\"\s*:\s*\"[^"]*\"', '', text)
@@ -119,14 +121,13 @@ def has_reasoning_leak(text: str) -> bool:
         "thought_process",
         "Let me think",
     ]
-    if len(text) > 400:
-        return True
     return any(marker.lower() in text.lower() for marker in reasoning_markers)
 
 
 def strip_voice_markdown(text: str) -> str:
     """Strip markdown and UI artifacts from assistant response text
     before sending to Vapi TTS so it doesn't sound robotic."""
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)

@@ -278,18 +278,9 @@ async def chat(request: ChatRequest):
 
             # Voice quality guard: detect leaked reasoning
             if request.channel == "voice" and llm_text_response and has_reasoning_leak(llm_text_response):
-                if reasoning_leak_retries < 1:
-                    reasoning_leak_retries += 1
-                    logger.warning("[routes] Voice reasoning leak detected (%d chars), retrying once.",
-                                   len(llm_text_response))
-                    messages.append({"role": "assistant", "content": response_text})
-                    messages.append({"role": "user", "content": _REASONING_RETRY_MSG})
-                    continue
-                else:
-                    # Retry limit hit — strip and use fallback, never loop again
-                    logger.warning("[routes] Reasoning leak persists — using clean_voice_text fallback.")
-                    llm_text_response = clean_voice_text(response_text)
-                    tool_call = None
+                logger.warning("[routes] Reasoning leak detected — using clean_voice_text fallback to avoid timeout.")
+                llm_text_response = clean_voice_text(response_text)
+                tool_call = None
 
             # No tool call — return response
             if not tool_call:

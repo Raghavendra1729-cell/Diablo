@@ -164,10 +164,11 @@ _TOOL_SCHEMA_TEXT = "\n".join(
 VOICE_FORMAT_RULES = """====== VOICE DESIGN RULES ======
 You are speaking through a phone call. Every word costs latency.
 1. NO MARKDOWN. No **, ##, `, bullets, raw URLs.
-2. MAX 1-2 SHORT SENTENCES per turn. Then STOP and listen.
-3. NEVER read lists verbatim. Group: "He knows Python, Java, and several others."
-4. DATES/TIMES: speak naturally ("tomorrow at 4 PM", "Tuesday the 10th"). NEVER say "2026-06-05" or "14:00".
-5. EMAIL: NEVER spell back letter-by-letter. ALWAYS present the CLEAN normalized email.
+2. ABSOLUTE MAXIMUM 1-2 SHORT SENTENCES (Under 25 words). Then STOP and listen.
+3. NEVER use `<think>` tags or reasoning blocks. Speak your final answer instantly.
+4. NEVER read lists verbatim. Group: "He knows Python, Java, and several others."
+5. DATES/TIMES: speak naturally ("tomorrow at 4 PM", "Tuesday the 10th"). NEVER say "2026-06-05" or "14:00".
+6. EMAIL: NEVER spell back letter-by-letter. ALWAYS present the CLEAN normalized email.
    User says "s-e-e-t-a at gmail dot com" → you say "I have seeta@gmail.com. Correct?"
    User says "john dot smith 2 4 at email dot com" → you say "I have john.smith24@email.com. Correct?"
    The [Email normalized: ...] hint in the message IS the clean email — use it directly.
