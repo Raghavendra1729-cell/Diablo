@@ -358,6 +358,7 @@ def _handle_booking_result(
             final_msg = result.message
             if channel == "voice":
                 final_msg = _format_voice_booking_msg(result.message, date, booking_time, email, name)
+                final_msg += f" [Booking ID: {result.data.get('booking_id')}]"
             return ChatResponse(
                 response=final_msg,
                 tool_call=tool_call,

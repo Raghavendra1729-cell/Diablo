@@ -15,7 +15,7 @@ retrieval:
   top_k: 10                       
 
 llm:
-  model: "MiniMaxAI/MiniMax-M2.7:novita"
+  model: "MiniMaxAI/MiniMax-M2.7:fastest"
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
   max_tokens: 4096         # was 4096 — 63% cheaper, still plenty for full answers

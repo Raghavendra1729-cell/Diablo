@@ -101,6 +101,7 @@ def clean_voice_text(raw: str) -> str:
     text = re.sub(r'\[BOOKING_WIDGET[^\]]*\]', '', text)
     text = re.sub(r'\[CALENDAR_WIDGET\]', '', text)
     text = re.sub(r'\[Email normalized:[^\]]*\]', '', text)
+    text = re.sub(r'\[Booking ID:[^\]]*\]', '', text)
     # Collapse whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     if not text or len(text) < 3:
@@ -136,4 +137,5 @@ def strip_voice_markdown(text: str) -> str:
     text = re.sub(r'\[BOOKING_WIDGET.*?\]', '', text)
     text = re.sub(r'\[CALENDAR_WIDGET\]', '', text)
     text = re.sub(r'\[Email normalized:[^\]]*\]', '', text)
+    text = re.sub(r'\[Booking ID:[^\]]*\]', '', text)
     return text
