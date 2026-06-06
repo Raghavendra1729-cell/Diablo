@@ -113,53 +113,56 @@ async def guard_llm_endpoints(request: Request, call_next):
     now = time.time()
 
     # ── LAYER 1: in-flight concurrency guard ─────────────────────────────────
-    if client_ip in _ip_in_flight:
-        logger.warning(
-            "[guard] IN-FLIGHT BLOCKED %s → %s", client_ip, request.url.path
-        )
-        return JSONResponse(
-            status_code=429,
-            content={
-                "detail": "A request is already being processed. Please wait.",
-                "error": "request_in_flight",
-            },
-            headers={"Retry-After": "30"},
-        )
+    # DISABLED: Vapi needs to send overlapping requests when a user interrupts
+    # the agent mid-sentence, triggering a new turn before the old turn finishes.
+    # if client_ip in _ip_in_flight:
+    #     logger.warning(
+    #         "[guard] IN-FLIGHT BLOCKED %s → %s", client_ip, request.url.path
+    #     )
+    #     return JSONResponse(
+    #         status_code=429,
+    #         content={
+    #             "detail": "A request is already being processed. Please wait.",
+    #             "error": "request_in_flight",
+    #         },
+    #         headers={"Retry-After": "30"},
+    #     )
 
     # ── LAYER 2: sliding window rate limit ───────────────────────────────
-    if now - _last_full_cleanup > 300:
-        _last_full_cleanup = now
-        for ip in [
-            k for k, v in _rate_limit_store.items()
-            if not v or v[-1] < now - _RATE_LIMIT_WINDOW
-        ]:
-            del _rate_limit_store[ip]
-
-    window_start = now - _RATE_LIMIT_WINDOW
-    _rate_limit_store[client_ip] = [
-        t for t in _rate_limit_store[client_ip] if t > window_start
-    ]
-    count = len(_rate_limit_store[client_ip])
-    if count >= _RATE_LIMIT_MAX:
-        logger.warning(
-            "[rate_limit] %s exceeded %d req/min on %s",
-            client_ip, _RATE_LIMIT_MAX, request.url.path,
-        )
-        return JSONResponse(
-            status_code=429,
-            content={
-                "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
-                "error": "rate_limit_exceeded",
-            },
-            headers={"Retry-After": "60"},
-        )
-
-    _rate_limit_store[client_ip].append(now)
-    _ip_in_flight.add(client_ip)
+    # DISABLED: Ensuring absolutely zero interruptions during the Loom video recording.
+    # if now - _last_full_cleanup > 300:
+    #     _last_full_cleanup = now
+    #     for ip in [
+    #         k for k, v in _rate_limit_store.items()
+    #         if not v or v[-1] < now - _RATE_LIMIT_WINDOW
+    #     ]:
+    #         del _rate_limit_store[ip]
+    #
+    # window_start = now - _RATE_LIMIT_WINDOW
+    # _rate_limit_store[client_ip] = [
+    #     t for t in _rate_limit_store[client_ip] if t > window_start
+    # ]
+    # count = len(_rate_limit_store[client_ip])
+    # if count >= _RATE_LIMIT_MAX:
+    #     logger.warning(
+    #         "[rate_limit] %s exceeded %d req/min on %s",
+    #         client_ip, _RATE_LIMIT_MAX, request.url.path,
+    #     )
+    #     return JSONResponse(
+    #         status_code=429,
+    #         content={
+    #             "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
+    #             "error": "rate_limit_exceeded",
+    #         },
+    #         headers={"Retry-After": "60"},
+    #     )
+    #
+    # _rate_limit_store[client_ip].append(now)
+    # _ip_in_flight.add(client_ip)
     
     logger.info(
-        "[guard] OK %s → %s  [window %d/%d]",
-        client_ip, request.url.path, count + 1, _RATE_LIMIT_MAX,
+        "[guard] OK %s → %s  (Rate limiting disabled for video)",
+        client_ip, request.url.path
     )
     
     try:
