@@ -68,6 +68,8 @@ async def execute_tool(tool_call: dict[str, Any]) -> ToolResult:
     """
     name: str = tool_call.get("name", "").strip()
     arguments: dict[str, Any] = tool_call.get("arguments", {})
+    if arguments is None:
+        arguments = {}
 
     if not name:
         return ToolResult(

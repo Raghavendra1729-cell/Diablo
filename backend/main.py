@@ -25,18 +25,11 @@ _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 _last_full_cleanup = 0.0
 
 # ── Per-IP concurrency guard ──────────────────────────────────────────────────
-# One asyncio.Lock per IP. acquire_nowait() is called non-blocking:
-# - If no request in flight → acquired immediately → proceed
-# - If a request IS in flight → raises immediately → return 429
-# This stops the Vapi retry storm where 1 slow call → Vapi retries → 1000 calls
-_ip_locks: dict[str, asyncio.Lock] = {}
-_ip_locks_meta: dict[str, float] = {}
-
-def _get_ip_lock(ip: str) -> asyncio.Lock:
-    if ip not in _ip_locks:
-        _ip_locks[ip] = asyncio.Lock()
-    _ip_locks_meta[ip] = time.time()
-    return _ip_locks[ip]
+# A simple set tracking IPs currently processing a request.
+# In asyncio's single-threaded event loop, checking and adding to a set
+# is completely atomic because there are no `await` yields between them.
+# This prevents Vapi retry storms.
+_ip_in_flight: set[str] = set()
 
 # Endpoints that invoke the LLM — both must be protected
 _LLM_ENDPOINTS = {"/v1/chat", "/chat/completions"}
@@ -74,6 +67,11 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("[shutdown] API shutting down.")
+    try:
+        from src.tools.calendar_tools import close_http_client
+        await close_http_client()
+    except Exception as exc:
+        logger.warning("[shutdown] Could not close HTTP client: %s", exc)
 
 
 app = FastAPI(title="RAG Persona API", version="1.0.0", lifespan=lifespan)
@@ -94,13 +92,7 @@ async def guard_llm_endpoints(request: Request, call_next):
 
     LAYER 1 — Per-IP concurrency lock  (fixes the Vapi retry storm)
     ----------------------------------------------------------------
-    lock.acquire_nowait() is non-blocking and atomic in asyncio's
-    single-threaded event loop.
-
-    Scenario it prevents:
-      Vapi sends request → LLM takes 25s → Vapi times out → retries
-      Without guard: old request + new retry both call LLM → pile-up
-      With guard:    retry hits locked IP → instant 429 → 0 extra cost
+    If client_ip is already in _ip_in_flight, reject immediately.
 
     LAYER 2 — Sliding window rate limit
     ------------------------------------
@@ -111,16 +103,17 @@ async def guard_llm_endpoints(request: Request, call_next):
     if request.url.path not in _LLM_ENDPOINTS or request.method != "POST":
         return await call_next(request)
 
-    client_ip = request.client.host if request.client else "unknown"
+    # Use x-forwarded-for if behind a proxy like HuggingFace Spaces
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client else "unknown"
+        
     now = time.time()
 
-    # ── LAYER 1: try to acquire the per-IP lock non-blocking ─────────────────
-    lock = _get_ip_lock(client_ip)
-    try:
-        lock.acquire_nowait()
-        # Successfully acquired — we are the only request for this IP
-    except Exception:
-        # Lock is held → a request is already in flight → reject immediately
+    # ── LAYER 1: in-flight concurrency guard ─────────────────────────────────
+    if client_ip in _ip_in_flight:
         logger.warning(
             "[guard] IN-FLIGHT BLOCKED %s → %s", client_ip, request.url.path
         )
@@ -133,49 +126,46 @@ async def guard_llm_endpoints(request: Request, call_next):
             headers={"Retry-After": "30"},
         )
 
-    # Lock is ours — wrap everything in try/finally so we ALWAYS release it
-    try:
-        # ── LAYER 2: sliding window rate limit ───────────────────────────────
-        # Periodic cleanup of stale entries
-        if now - _last_full_cleanup > 300:
-            _last_full_cleanup = now
-            for ip in [k for k, t in _ip_locks_meta.items() if now - t > 600]:
-                _ip_locks.pop(ip, None)
-                _ip_locks_meta.pop(ip, None)
-            for ip in [
-                k for k, v in _rate_limit_store.items()
-                if not v or v[-1] < now - _RATE_LIMIT_WINDOW
-            ]:
-                del _rate_limit_store[ip]
+    # ── LAYER 2: sliding window rate limit ───────────────────────────────
+    if now - _last_full_cleanup > 300:
+        _last_full_cleanup = now
+        for ip in [
+            k for k, v in _rate_limit_store.items()
+            if not v or v[-1] < now - _RATE_LIMIT_WINDOW
+        ]:
+            del _rate_limit_store[ip]
 
-        window_start = now - _RATE_LIMIT_WINDOW
-        _rate_limit_store[client_ip] = [
-            t for t in _rate_limit_store[client_ip] if t > window_start
-        ]
-        count = len(_rate_limit_store[client_ip])
-        if count >= _RATE_LIMIT_MAX:
-            logger.warning(
-                "[rate_limit] %s exceeded %d req/min on %s",
-                client_ip, _RATE_LIMIT_MAX, request.url.path,
-            )
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
-                    "error": "rate_limit_exceeded",
-                },
-                headers={"Retry-After": "60"},
-            )
-
-        _rate_limit_store[client_ip].append(now)
-        logger.info(
-            "[guard] OK %s → %s  [window %d/%d]",
-            client_ip, request.url.path, count + 1, _RATE_LIMIT_MAX,
+    window_start = now - _RATE_LIMIT_WINDOW
+    _rate_limit_store[client_ip] = [
+        t for t in _rate_limit_store[client_ip] if t > window_start
+    ]
+    count = len(_rate_limit_store[client_ip])
+    if count >= _RATE_LIMIT_MAX:
+        logger.warning(
+            "[rate_limit] %s exceeded %d req/min on %s",
+            client_ip, _RATE_LIMIT_MAX, request.url.path,
         )
-        return await call_next(request)
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
+                "error": "rate_limit_exceeded",
+            },
+            headers={"Retry-After": "60"},
+        )
 
+    _rate_limit_store[client_ip].append(now)
+    _ip_in_flight.add(client_ip)
+    
+    logger.info(
+        "[guard] OK %s → %s  [window %d/%d]",
+        client_ip, request.url.path, count + 1, _RATE_LIMIT_MAX,
+    )
+    
+    try:
+        return await call_next(request)
     finally:
-        lock.release()
+        _ip_in_flight.discard(client_ip)
 
 
 @app.middleware("http")

@@ -23,6 +23,12 @@ export function useChat() {
   const textareaRef = useRef(null);
   const messagesRef = useRef(messages);
   const loadingRef = useRef(loading);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { loadingRef.current = loading; }, [loading]);
@@ -51,12 +57,16 @@ export function useChat() {
     const userMsg = text.trim();
     setInput('');
 
-    setMessages((prev) => [...prev, { role: 'user', content: userMsg }]);
+    loadingRef.current = true; // Sync lock prevents rapid click double-fire
     setLoading(true);
+    setMessages((prev) => [...prev, { role: 'user', content: userMsg }]);
 
     if (userMsg.length > 2000) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Message too long. Please keep it under 2000 characters.' }]);
-      setLoading(false);
+      if (isMounted.current) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Message too long. Please keep it under 2000 characters.' }]);
+        setLoading(false);
+      }
+      loadingRef.current = false;
       return;
     }
 
@@ -67,20 +77,27 @@ export function useChat() {
         message: userMsg, history, channel: 'web',
       });
       const { response: aiText, booking_confirmed, booking_details } = res.data;
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: aiText || '', booking_confirmed, booking_details },
-      ]);
+      if (isMounted.current) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: aiText || '', booking_confirmed, booking_details },
+        ]);
+      }
     } catch (err) {
-      const rawDetail = err.response?.data?.detail;
-      const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : err.message || 'Unable to reach the server.');
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `**Connection error** — ${detail}\n\nMake sure the backend is running at \`${API_URL}\`.` },
-      ]);
+      if (isMounted.current) {
+        const rawDetail = err.response?.data?.detail;
+        const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : err.message || 'Unable to reach the server.');
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `**Connection error** — ${detail}\n\nMake sure the backend is running at \`${API_URL}\`.` },
+        ]);
+      }
     } finally {
-      setLoading(false);
-      textareaRef.current?.focus();
+      loadingRef.current = false;
+      if (isMounted.current) {
+        setLoading(false);
+        textareaRef.current?.focus();
+      }
     }
   }, []);
 

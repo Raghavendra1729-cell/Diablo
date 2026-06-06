@@ -7,6 +7,12 @@ export function useCalendar() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const fetchSlots = async (selectedDate) => {
     if (!selectedDate) {
@@ -19,12 +25,14 @@ export function useCalendar() {
     setSlots([]);
     try {
       const res = await axios.get(`${API_URL}/v1/calendar/slots?date=${selectedDate}`);
-      setSlots(res.data.slots || []);
+      if (isMounted.current) setSlots(res.data.slots || []);
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Failed to fetch slots.');
+      if (isMounted.current) {
+        const detail = err.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Failed to fetch slots.');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 

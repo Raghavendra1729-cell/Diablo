@@ -569,3 +569,9 @@ async def list_bookings(status: str = "upcoming") -> ToolResult:
             error="system_error",
             message=f"Failed to list bookings: {e}",
         )
+
+async def close_http_client():
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None

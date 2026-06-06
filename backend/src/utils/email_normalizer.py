@@ -19,21 +19,14 @@ logger = logging.getLogger(__name__)
 # Matches "email is/would be X dot Y at Z dot com"
 _EMAIL_PATTERN = re.compile(
     r'(?:email\s+(?:is|address\s+(?:is|would\s+be))?\s*[:=-]?\s*)'
-    r'((?:[a-zA-Z0-9](?:[\s.-]*[a-zA-Z0-9])*\s*(?:dot|at|@)\s*)+'
-    r'(?:[a-zA-Z0-9](?:[\s.-]*[a-zA-Z0-9])*\s*(?:dot)\s*)+'
-    r'(?:com|org|net|edu|io|co|ai|dev|app|in))',
+    r'([a-zA-Z0-9\s.-]{5,100}(?:com|org|net|edu|io|co|ai|dev|app|in))\b',
     re.IGNORECASE,
 )
 
 # Fallback: find runs of "word dot/at word" patterns anywhere in the message
+# Safe, non-overlapping version
 _SPELLED_OUT_RUN = re.compile(
-    r'(?:^|\s)('
-    r'(?:[a-zA-Z0-9]+[\s-])+'
-    r'(?:dot|at)'
-    r'(?:[\s-][a-zA-Z0-9]+)+'
-    r'(?:\s(?:dot|at))'
-    r'(?:[\s-][a-zA-Z0-9]+)+'
-    r')',
+    r'(?:^|\s)([a-zA-Z0-9][a-zA-Z0-9\s-]{1,50}(?:dot|at)[a-zA-Z0-9\s-]{1,50}(?:dot|at)[a-zA-Z0-9\s-]{1,50})',
     re.IGNORECASE,
 )
 
