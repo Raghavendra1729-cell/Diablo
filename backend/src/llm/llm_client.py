@@ -58,7 +58,7 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
     """
     max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
     temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
-    # Voice needs json_object too — otherwise Llama 3.3 70B outputs plain text
+    # Voice needs json_object too — otherwise some models output plain text
     # and tool calls are lost. Robust fallback parsing in _parse_llm_output handles
     # any malformed JSON safely.
     use_json = True

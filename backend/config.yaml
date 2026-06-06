@@ -15,10 +15,10 @@ retrieval:
   top_k: 10                       
 
 llm:
-  model: "meta-llama/Llama-3.3-70B-Instruct:fastest"
+  model: "MiniMaxAI/MiniMax-M2.7:novita"
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
-  max_tokens: 1500         # was 4096 — 63% cheaper, still plenty for full answers
+  max_tokens: 4096         # was 4096 — 63% cheaper, still plenty for full answers
   max_tokens_voice: 400    # voice must be short; 400 covers long tool-result synthesis
   temperature: 0.3
   temperature_voice: 0.5
