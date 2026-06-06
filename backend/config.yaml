@@ -15,9 +15,9 @@ retrieval:
   top_k: 10                       
 
 llm:
-  model: "meta-llama/Llama-3.3-70B-Instruct"
+  model: "meta-llama/Llama-3.3-70B-Instruct:fastest"
   provider: "huggingface"
-  base_url: "https://router.huggingface.co/hf-inference/v1"
+  base_url: "https://router.huggingface.co/v1"
   max_tokens: 1500         # was 4096 — 63% cheaper, still plenty for full answers
   max_tokens_voice: 400    # voice must be short; 400 covers long tool-result synthesis
   temperature: 0.3
