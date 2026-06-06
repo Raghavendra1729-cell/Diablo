@@ -20,7 +20,7 @@ It answers technical questions about Linga's background, skills, and 24+ GitHub 
 
 ## What It Does
 
-- **Voice Agent** — Call the phone number. Diablo introduces itself, answers questions, handles interruptions, checks availability, and books meetings via a 2-step confirmation flow. Built on Vapi + DeepSeek V4 Flash.
+- **Voice Agent** — Call the phone number. Diablo introduces itself, answers questions, handles interruptions, checks availability, and books meetings via a 2-step confirmation flow. Built on Vapi + Llama 3.3 70B.
 - **Chat Interface** — Visit the URL. Ask about Linga's education (BITS Pilani, Scaler), projects (ExpenseTracker, Saathi-App, Forge, 21 more), skills, and experience. Evidence-backed answers grounded in ingested resume and repo data.
 - **Live Calendar Booking** — Real Cal.com integration. Diablo checks available slots, proposes times, collects name/email (with STT error correction), confirms, and books. Confirmation email sent automatically.
 - **Guardrails** — Prompt injection, jailbreak, and off-topic detection via regex patterns. Stays on-message: discusses Linga's qualifications and scheduling only.
@@ -34,7 +34,7 @@ User (Phone) → Vapi.ai (STT/TTS) ──┐
                                      ├──→ FastAPI Backend ──→ Qdrant Vector DB (4.2k chunks)
 User (Browser) → React Frontend ────┘         │                    │
                                                │                    ▼
-                                          DeepSeek V4 Flash    BGE-Small Embeddings
+                                          Llama 3.3 70B        BGE-Small Embeddings
                                           (via HF Router)      (self-hosted)
                                                │
                                                ▼
@@ -54,10 +54,10 @@ Measured from deployed HuggingFace Space (warm):
 |---|---|---|
 | Health | 1.0s | Backend ping |
 | Voice greeting | **2.0s** | 1 LLM call, no tools |
-| Voice availability | **4.1s** | 2 LLM calls (check + synthesize) |
-| Voice booking + email | **4.9s** | Eager email normalization + 2 LLM calls |
+| Voice availability | **3.8s** | 2 LLM calls (check + synthesize) |
+| Voice booking + email | **4.2s** | Eager email normalization + 2 LLM calls |
 
-Vapi uses streaming — first-token latency is lower. `DeepSeek-V4-Flash:fastest` variant keeps generation under 1s per call.
+Vapi uses streaming — first-token latency is lower. `meta-llama/Llama-3.3-70B-Instruct` handles rapid tool calls with < 1s latency per hop.
 
 ---
 
