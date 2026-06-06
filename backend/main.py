@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 import os
 import time
+import asyncio
 import logging
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -17,17 +18,27 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 
-# ── Simple in-memory rate limiter (10 req/min per IP for /v1/chat) ──────────
-_RATE_LIMIT_WINDOW = 60       # seconds
-_RATE_LIMIT_MAX = 10          # max requests per window per IP
+# ── Rate limiting config ─────────────────────────────────────────────────────
+# Per-IP sliding window: 20 requests per 60 seconds (prevents normal abuse)
+_RATE_LIMIT_WINDOW = 60
+_RATE_LIMIT_MAX = 20
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_last_full_cleanup = 0.0
+
+# ── Per-IP concurrency lock (THE KEY FIX) ────────────────────────────────────
+# Prevents Vapi retry storms: if an IP already has a request in-flight,
+# immediately return 429 instead of queuing another expensive LLM call.
+# Vapi retries every ~5s when it times out — without this, 1000 calls/min.
+_ip_in_flight: set[str] = set()
+
+# ── Endpoints that invoke the LLM (must be guarded) ─────────────────────────
+_LLM_ENDPOINTS = {"/v1/chat", "/chat/completions"}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: verify Qdrant collection is ready. Shutdown: no-op."""
     from src.vectordb.vector_store import check_collection_ready
-
     from src.config import validate_env
 
     validate_env()
@@ -76,34 +87,89 @@ app.add_middleware(
 )
 
 
-# Add a periodic full cleanup every 5 minutes
-_last_full_cleanup = 0.0
-
 @app.middleware("http")
-async def rate_limit_chat(request: Request, call_next):
-    """Rate-limit /v1/chat to _RATE_LIMIT_MAX requests per _RATE_LIMIT_WINDOW per IP."""
+async def rate_limit_and_deduplicate(request: Request, call_next):
+    """
+    Two-layer protection for all LLM endpoints:
+
+    Layer 1 — CONCURRENCY LOCK (fixes the $10 Vapi retry storm)
+    ─────────────────────────────────────────────────────────────
+    If an IP already has a request in-flight, immediately return 429.
+    Vapi retries aggressively when the LLM is slow (~60s). Without this,
+    each retry spawns a new LLM call while the old one is still running,
+    causing 1000+ calls in minutes.
+
+    Layer 2 — SLIDING WINDOW RATE LIMIT
+    ─────────────────────────────────────
+    20 requests per 60 seconds per IP. Prevents sustained abuse.
+    """
     global _last_full_cleanup
-    if request.url.path == "/v1/chat" and request.method == "POST":
+
+    if request.url.path in _LLM_ENDPOINTS and request.method == "POST":
         client_ip = request.client.host if request.client else "unknown"
         now = time.time()
-        
-        # Full cleanup every 5 minutes
-        if now - _last_full_cleanup > 300:
-            _last_full_cleanup = now
-            stale_ips = [ip for ip, times in _rate_limit_store.items() 
-                        if not times or times[-1] < now - _RATE_LIMIT_WINDOW]
-            for ip in stale_ips:
-                del _rate_limit_store[ip]
-        
-        window_start = now - _RATE_LIMIT_WINDOW
-        # Prune old entries
-        _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if t > window_start]
-        if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_MAX:
+
+        # ── Layer 1: Per-IP concurrency guard ───────────────────────────────
+        if client_ip in _ip_in_flight:
+            logger.warning(
+                "[rate_limit] DUPLICATE IN-FLIGHT blocked for %s → %s "
+                "(Vapi retry storm prevention)",
+                client_ip, request.url.path,
+            )
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Too many requests. Please try again in a minute."},
+                content={
+                    "detail": "A request is already being processed. Please wait for it to complete.",
+                    "error": "request_in_flight",
+                },
+                headers={"Retry-After": "30"},
             )
+
+        # ── Layer 2: Sliding window rate limit ──────────────────────────────
+        # Cleanup stale IPs every 5 minutes
+        if now - _last_full_cleanup > 300:
+            _last_full_cleanup = now
+            stale_ips = [
+                ip for ip, times in _rate_limit_store.items()
+                if not times or times[-1] < now - _RATE_LIMIT_WINDOW
+            ]
+            for ip in stale_ips:
+                del _rate_limit_store[ip]
+
+        window_start = now - _RATE_LIMIT_WINDOW
+        _rate_limit_store[client_ip] = [
+            t for t in _rate_limit_store[client_ip] if t > window_start
+        ]
+        current_count = len(_rate_limit_store[client_ip])
+        if current_count >= _RATE_LIMIT_MAX:
+            logger.warning(
+                "[rate_limit] IP %s hit %d req/min limit on %s",
+                client_ip, _RATE_LIMIT_MAX, request.url.path,
+            )
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min. Please slow down.",
+                    "error": "rate_limit_exceeded",
+                },
+                headers={"Retry-After": "60"},
+            )
+
+        # ── Mark this IP as in-flight, process, then release ────────────────
         _rate_limit_store[client_ip].append(now)
+        _ip_in_flight.add(client_ip)
+        logger.debug(
+            "[rate_limit] %s → %s | window: %d/%d | in-flight IPs: %d",
+            client_ip, request.url.path,
+            current_count + 1, _RATE_LIMIT_MAX, len(_ip_in_flight),
+        )
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            # Always release — even if an exception occurs
+            _ip_in_flight.discard(client_ip)
+
     return await call_next(request)
 
 
@@ -128,7 +194,7 @@ app.include_router(router)
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chat-ui", "dist")
 if os.path.isdir(frontend_dist):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
-    
+
     @app.get("/{full_path:path}")
     async def serve_react(full_path: str):
         # Serve index.html for all non-API routes to support React Router

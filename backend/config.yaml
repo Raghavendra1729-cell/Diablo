@@ -18,11 +18,13 @@ llm:
   model: "deepseek-ai/DeepSeek-V4-Flash:fastest"
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
-  max_tokens: 4096
-  max_tokens_voice: 350
+  max_tokens: 1500         # was 4096 — 63% cheaper, still plenty for full answers
+  max_tokens_voice: 400    # voice must be short; 400 covers long tool-result synthesis
   temperature: 0.3
   temperature_voice: 0.5
   top_p: 0.9
+  max_search_turns: 3      # max LLM tool-call loops per request
+  history_limit: 10        # max history messages sent per request (prevents growing context cost)
 
 calendar:
   provider: "calcom"                 

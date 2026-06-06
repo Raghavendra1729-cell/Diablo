@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from src.api.schemas import ChatRequest, ChatResponse, Message
-from src.config import LLM_MODEL
+from src.config import LLM_MODEL, LLM_MAX_SEARCH_TURNS, LLM_HISTORY_LIMIT
 from src.llm.llm_client import generate, get_client
 from src.llm.output_parser import (
     parse_llm_output,
@@ -172,8 +172,10 @@ def _format_tool_result(tool_name: str, result, tool_call: dict, channel: str) -
 
 @router.get("/health")
 async def health_check(ping_llm: bool = False):
-    """Health check endpoint. Set ping_llm=True to warm the LLM."""
+    """Health check endpoint. Set ping_llm=True to warm the LLM (use sparingly — costs tokens)."""
     if ping_llm:
+        # Guard: only ping if explicitly required, not from monitoring loops
+        logger.warning("[health] ping_llm=True called — this costs 1 LLM call. Use sparingly.")
         try:
             client = get_client()
             await run_in_threadpool(
@@ -223,17 +225,20 @@ async def chat(request: ChatRequest):
             logger.error("[routes] Context retrieval failed: %s\n%s", e, traceback.format_exc())
             raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
-        # Stage 3: Build prompt
+        # Stage 3: Build prompt — trim history to last N messages to cap cost
         try:
             system_prompt = build_system_prompt(request.channel, context_chunks)
-            history_dicts = [{"role": m.role, "content": m.content} for m in request.history]
+            # Keep only the most recent LLM_HISTORY_LIMIT messages.
+            # Long conversations grow the context exponentially — this stops it.
+            trimmed_history = request.history[-LLM_HISTORY_LIMIT:] if request.history else []
+            history_dicts = [{"role": m.role, "content": m.content} for m in trimmed_history]
             messages = build_messages(system_prompt, history_dicts, user_message)
         except Exception as e:
             logger.error("[routes] Prompt building failed: %s\n%s", e, traceback.format_exc())
             raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
         # Stage 4: LLM loop with tool dispatch
-        max_search_turns = 5
+        max_search_turns = LLM_MAX_SEARCH_TURNS  # from config.yaml (default 3)
         search_turns = 0
         result = None
         json_parse_failures = 0
