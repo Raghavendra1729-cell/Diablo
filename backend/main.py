@@ -18,37 +18,43 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 
-# ── Rate limiting config ─────────────────────────────────────────────────────
-# Per-IP sliding window: 20 requests per 60 seconds (prevents normal abuse)
-_RATE_LIMIT_WINDOW = 60
-_RATE_LIMIT_MAX = 20
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+_RATE_LIMIT_WINDOW = 60   # seconds
+_RATE_LIMIT_MAX = 20      # max requests per window per IP
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 _last_full_cleanup = 0.0
 
-# ── Per-IP concurrency lock (THE KEY FIX) ────────────────────────────────────
-# Prevents Vapi retry storms: if an IP already has a request in-flight,
-# immediately return 429 instead of queuing another expensive LLM call.
-# Vapi retries every ~5s when it times out — without this, 1000 calls/min.
-_ip_in_flight: set[str] = set()
+# ── Per-IP concurrency guard ──────────────────────────────────────────────────
+# One asyncio.Lock per IP. acquire_nowait() is called non-blocking:
+# - If no request in flight → acquired immediately → proceed
+# - If a request IS in flight → raises immediately → return 429
+# This stops the Vapi retry storm where 1 slow call → Vapi retries → 1000 calls
+_ip_locks: dict[str, asyncio.Lock] = {}
+_ip_locks_meta: dict[str, float] = {}
 
-# ── Endpoints that invoke the LLM (must be guarded) ─────────────────────────
+def _get_ip_lock(ip: str) -> asyncio.Lock:
+    if ip not in _ip_locks:
+        _ip_locks[ip] = asyncio.Lock()
+    _ip_locks_meta[ip] = time.time()
+    return _ip_locks[ip]
+
+# Endpoints that invoke the LLM — both must be protected
 _LLM_ENDPOINTS = {"/v1/chat", "/chat/completions"}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: verify Qdrant collection is ready. Shutdown: no-op."""
+    """Startup: warm models and verify Qdrant. Shutdown: no-op."""
     from src.vectordb.vector_store import check_collection_ready
     from src.config import validate_env
 
     validate_env()
 
-    # Pre-warm embedding models so first request isn't slow
     logger.info("[startup] Pre-warming embedding models...")
     try:
         from src.embeddings.embedder import get_embedder, get_sparse_embedder
-        get_embedder()        # triggers lazy load of dense model
-        get_sparse_embedder() # triggers lazy load of sparse model
+        get_embedder()
+        get_sparse_embedder()
         logger.info("[startup] Embedding models warmed up.")
     except Exception as exc:
         logger.warning("[startup] Could not pre-warm embedding models: %s", exc)
@@ -57,22 +63,16 @@ async def lifespan(app: FastAPI):
     try:
         ready, count = check_collection_ready()
         if ready:
-            logger.info("[startup] Qdrant collection is ready with %d indexed points.", count)
+            logger.info("[startup] Qdrant collection ready — %d points indexed.", count)
         else:
             logger.warning(
-                "[startup] Qdrant collection is EMPTY or does not exist. "
-                "The API will start but /v1/chat will return no context. "
+                "[startup] Qdrant collection EMPTY. "
                 "Run:  python ingest.py   to index your data."
             )
     except Exception as exc:
-        logger.error(
-            "[startup] Could not reach Qdrant: %s. "
-            "Check QDRANT_URL / QDRANT_HOST env vars.",
-            exc,
-        )
+        logger.error("[startup] Cannot reach Qdrant: %s", exc)
 
     yield
-    # --- shutdown ---
     logger.info("[shutdown] API shutting down.")
 
 
@@ -88,89 +88,94 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def rate_limit_and_deduplicate(request: Request, call_next):
+async def guard_llm_endpoints(request: Request, call_next):
     """
-    Two-layer protection for all LLM endpoints:
+    Two-layer protection on /v1/chat and /chat/completions:
 
-    Layer 1 — CONCURRENCY LOCK (fixes the $10 Vapi retry storm)
-    ─────────────────────────────────────────────────────────────
-    If an IP already has a request in-flight, immediately return 429.
-    Vapi retries aggressively when the LLM is slow (~60s). Without this,
-    each retry spawns a new LLM call while the old one is still running,
-    causing 1000+ calls in minutes.
+    LAYER 1 — Per-IP concurrency lock  (fixes the Vapi retry storm)
+    ----------------------------------------------------------------
+    lock.acquire_nowait() is non-blocking and atomic in asyncio's
+    single-threaded event loop.
 
-    Layer 2 — SLIDING WINDOW RATE LIMIT
-    ─────────────────────────────────────
-    20 requests per 60 seconds per IP. Prevents sustained abuse.
+    Scenario it prevents:
+      Vapi sends request → LLM takes 25s → Vapi times out → retries
+      Without guard: old request + new retry both call LLM → pile-up
+      With guard:    retry hits locked IP → instant 429 → 0 extra cost
+
+    LAYER 2 — Sliding window rate limit
+    ------------------------------------
+    20 requests per 60 s per IP (sustained abuse prevention).
     """
     global _last_full_cleanup
 
-    if request.url.path in _LLM_ENDPOINTS and request.method == "POST":
-        client_ip = request.client.host if request.client else "unknown"
-        now = time.time()
+    if request.url.path not in _LLM_ENDPOINTS or request.method != "POST":
+        return await call_next(request)
 
-        # ── Layer 1: Per-IP concurrency guard ───────────────────────────────
-        if client_ip in _ip_in_flight:
-            logger.warning(
-                "[rate_limit] DUPLICATE IN-FLIGHT blocked for %s → %s "
-                "(Vapi retry storm prevention)",
-                client_ip, request.url.path,
-            )
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "detail": "A request is already being processed. Please wait for it to complete.",
-                    "error": "request_in_flight",
-                },
-                headers={"Retry-After": "30"},
-            )
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
 
-        # ── Layer 2: Sliding window rate limit ──────────────────────────────
-        # Cleanup stale IPs every 5 minutes
+    # ── LAYER 1: try to acquire the per-IP lock non-blocking ─────────────────
+    lock = _get_ip_lock(client_ip)
+    try:
+        lock.acquire_nowait()
+        # Successfully acquired — we are the only request for this IP
+    except Exception:
+        # Lock is held → a request is already in flight → reject immediately
+        logger.warning(
+            "[guard] IN-FLIGHT BLOCKED %s → %s", client_ip, request.url.path
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": "A request is already being processed. Please wait.",
+                "error": "request_in_flight",
+            },
+            headers={"Retry-After": "30"},
+        )
+
+    # Lock is ours — wrap everything in try/finally so we ALWAYS release it
+    try:
+        # ── LAYER 2: sliding window rate limit ───────────────────────────────
+        # Periodic cleanup of stale entries
         if now - _last_full_cleanup > 300:
             _last_full_cleanup = now
-            stale_ips = [
-                ip for ip, times in _rate_limit_store.items()
-                if not times or times[-1] < now - _RATE_LIMIT_WINDOW
-            ]
-            for ip in stale_ips:
+            for ip in [k for k, t in _ip_locks_meta.items() if now - t > 600]:
+                _ip_locks.pop(ip, None)
+                _ip_locks_meta.pop(ip, None)
+            for ip in [
+                k for k, v in _rate_limit_store.items()
+                if not v or v[-1] < now - _RATE_LIMIT_WINDOW
+            ]:
                 del _rate_limit_store[ip]
 
         window_start = now - _RATE_LIMIT_WINDOW
         _rate_limit_store[client_ip] = [
             t for t in _rate_limit_store[client_ip] if t > window_start
         ]
-        current_count = len(_rate_limit_store[client_ip])
-        if current_count >= _RATE_LIMIT_MAX:
+        count = len(_rate_limit_store[client_ip])
+        if count >= _RATE_LIMIT_MAX:
             logger.warning(
-                "[rate_limit] IP %s hit %d req/min limit on %s",
+                "[rate_limit] %s exceeded %d req/min on %s",
                 client_ip, _RATE_LIMIT_MAX, request.url.path,
             )
             return JSONResponse(
                 status_code=429,
                 content={
-                    "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min. Please slow down.",
+                    "detail": f"Too many requests. Limit: {_RATE_LIMIT_MAX}/min.",
                     "error": "rate_limit_exceeded",
                 },
                 headers={"Retry-After": "60"},
             )
 
-        # ── Mark this IP as in-flight, process, then release ────────────────
         _rate_limit_store[client_ip].append(now)
-        _ip_in_flight.add(client_ip)
-        logger.debug(
-            "[rate_limit] %s → %s | window: %d/%d | in-flight IPs: %d",
-            client_ip, request.url.path,
-            current_count + 1, _RATE_LIMIT_MAX, len(_ip_in_flight),
+        logger.info(
+            "[guard] OK %s → %s  [window %d/%d]",
+            client_ip, request.url.path, count + 1, _RATE_LIMIT_MAX,
         )
-        try:
-            response = await call_next(request)
-            return response
-        finally:
-            # Always release — even if an exception occurs
-            _ip_in_flight.discard(client_ip)
+        return await call_next(request)
 
-    return await call_next(request)
+    finally:
+        lock.release()
 
 
 @app.middleware("http")
@@ -184,20 +189,29 @@ async def log_request_latency(request: Request, call_next):
     except Exception:
         raise
     finally:
-        duration = time.time() - start
-        logger.info("[%s] %s — %s — %.3fs", request.method, request.url.path, status_code, duration)
+        elapsed = time.time() - start
+        logger.info(
+            "[%s] %s — %s — %.3fs",
+            request.method, request.url.path, status_code, elapsed,
+        )
 
 
 app.include_router(router)
 
-# Mount React static files (for production deployment like HuggingFace Spaces)
-frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chat-ui", "dist")
+# Mount React static files (production / HuggingFace Spaces)
+frontend_dist = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "chat-ui", "dist",
+)
 if os.path.isdir(frontend_dist):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(frontend_dist, "assets")),
+        name="assets",
+    )
 
     @app.get("/{full_path:path}")
     async def serve_react(full_path: str):
-        # Serve index.html for all non-API routes to support React Router
         if full_path.startswith("v1/") or full_path == "health":
             return {"error": "Not Found"}
         return FileResponse(os.path.join(frontend_dist, "index.html"))

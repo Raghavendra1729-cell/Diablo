@@ -242,8 +242,15 @@ async def chat(request: ChatRequest):
         search_turns = 0
         result = None
         json_parse_failures = 0
+        reasoning_leak_retries = 0
+        total_llm_calls = 0
 
         while True:
+            total_llm_calls += 1
+            if total_llm_calls > 10:  # Hard safety cap
+                logger.error("[routes] Safety cap: exceeded 10 LLM calls.")
+                return ChatResponse(response="I'm having trouble processing that request.")
+
             try:
                 response_text = await generate(messages, channel=request.channel)
             except Exception as e:
@@ -271,13 +278,18 @@ async def chat(request: ChatRequest):
 
             # Voice quality guard: detect leaked reasoning
             if request.channel == "voice" and llm_text_response and has_reasoning_leak(llm_text_response):
-                if json_parse_failures <= 1:
-                    json_parse_failures += 1
-                    logger.warning("[routes] Voice reasoning leak detected (%d chars), retrying.",
+                if reasoning_leak_retries < 1:
+                    reasoning_leak_retries += 1
+                    logger.warning("[routes] Voice reasoning leak detected (%d chars), retrying once.",
                                    len(llm_text_response))
                     messages.append({"role": "assistant", "content": response_text})
                     messages.append({"role": "user", "content": _REASONING_RETRY_MSG})
                     continue
+                else:
+                    # Retry limit hit — strip and use fallback, never loop again
+                    logger.warning("[routes] Reasoning leak persists — using clean_voice_text fallback.")
+                    llm_text_response = clean_voice_text(response_text)
+                    tool_call = None
 
             # No tool call — return response
             if not tool_call:
