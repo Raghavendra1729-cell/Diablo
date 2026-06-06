@@ -72,7 +72,10 @@ export function useChat() {
 
     try {
       const history = [...messagesRef.current, { role: 'user', content: userMsg }]
-          .map((m) => ({ role: m.role, content: m.content }));
+          .map((m) => ({
+            role: m.role,
+            content: m.booking_details ? `${m.content}\n[Booking ID: ${m.booking_details.booking_id}]` : m.content
+          }));
       const res = await axios.post(`${API_URL}/v1/chat`, {
         message: userMsg, history, channel: 'web',
       });
