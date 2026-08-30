@@ -29,8 +29,7 @@ def test_chat_guardrail_blocked():
 
 
 def test_chat_clean_message():
-    """Test chat endpoint returns valid response shape.
-    Returns 500 if Qdrant is unreachable — tests graceful error handling."""
+    """Chat remains available when the optional retrieval layer is down."""
     response = client.post(
         "/v1/chat",
         json={
@@ -38,14 +37,9 @@ def test_chat_clean_message():
             "channel": "web",
         },
     )
-    # 200 = Qdrant is up, 500 = Qdrant down (graceful error with detail)
-    assert response.status_code in (200, 500)
+    assert response.status_code == 200
     data = response.json()
-    if response.status_code == 200:
-        assert "response" in data
-    else:
-        # Verify error response has detail
-        assert "detail" in data
+    assert "response" in data
 
 
 def test_availability_mock():

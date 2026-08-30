@@ -295,7 +295,10 @@ async def chat(request: ChatRequest):
                 logger.info("[routes] Skipping retrieval for short/booking voice turn.")
         except Exception as e:
             logger.error("[routes] Context retrieval failed: %s\n%s", e, traceback.format_exc())
-            raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
+            # RAG is an enrichment layer, not a prerequisite for calendar or
+            # general concierge flows. Readiness remains degraded, while chat
+            # continues with an empty context and must not invent evidence.
+            context_chunks = []
 
         # Stage 3: Build prompt — trim history to last N messages to cap cost
         try:
