@@ -29,9 +29,10 @@ pinned: false
 ## ✨ Key Features
 
 - 🎙️ **Voice Agent (Vapi)** — Call the live phone number. Diablo handles human interruptions, synthesizes natural responses, checks live calendar availability, and completes complex 2-step booking flows entirely over voice.
-- 💬 **Web Chat Interface** — A sleek React UI for deep dives into Linga's background (BITS Pilani, Scaler) and 21+ technical projects. Every answer is evidence-backed via hybrid dense/sparse retrieval.
+- 💬 **Web Chat Interface** — A responsive React concierge for focused candidate briefs, technical deep dives, project exploration, and interview scheduling. Service degradation and retry states are shown without exposing backend details.
 - 📅 **Live Cal.com Integration** — Direct integration with Cal.com v2. Proposes available slots, validates email formats (correcting messy STT inputs), and finalizes real calendar bookings.
 - 🛡️ **Ironclad Guardrails** — Enterprise-grade protections against prompt injections, jailbreaks, and off-topic queries. Diablo strictly discusses qualifications and scheduling.
+- 🧾 **Schema-locked responses** — Model output uses provider-enforced strict JSON Schema, followed by Pydantic validation. Unknown fields, tools, malformed arguments, and client-supplied system prompts are rejected.
 
 ---
 
@@ -44,7 +45,7 @@ graph LR
     B --> E{FastAPI Backend}
     D --> E
     E <-->|Dense/Sparse RAG| F[(Qdrant Vector DB<br>4.2k chunks)]
-    E -->|Llama 3.3 70B| G[HuggingFace Router]
+    E -->|Strict JSON Schema| G[Hugging Face Router<br>Qwen3-32B]
     E <-->|Live Booking| H[Cal.com v2 API]
 ```
 
@@ -60,7 +61,7 @@ graph LR
 - **🚦 Vapi-Optimized Rate Limiting:** Global in-flight locks are intentionally bypassed to support natural Vapi barge-ins (overlapping voice interruptions), while a sliding-window rate limit safely blocks API abuse scripts without dropping live callers.
 - **⏱️ Dynamic Timeouts:** Web chat has a full 25-second LLM timeout to allow deep reasoning, while Voice uses a strict 10-second timeout per tool hop (with graceful filler fallbacks) to prevent Vapi from severing connections during complex tasks.
 - **✅ Strict Pre-Validation:** Calendar parameters (future dates, strict times, regex-validated emails) are locally sanitized *before* hitting the Cal.com API to prevent silent scheduling failures.
-- **🧪 Extensive Test Coverage:** Bulletproofed by 43 unit tests and a rigorous suite of 50 E2E LLM interactions testing strict Hallucination bounds and adversarial attacks.
+- **🧪 Contract regression coverage:** Backend tests cover API, guardrail, retrieval, normalization, and strict-schema behavior; frontend tests cover response validation and malformed booking data. Live voice scripts remain available for server-on integration checks.
 
 ---
 
@@ -101,7 +102,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ### 2. Frontend (React + Vite)
 ```bash
 cd chat-ui
-npm install
+npm ci
+npm test
 npm run dev
 ```
 

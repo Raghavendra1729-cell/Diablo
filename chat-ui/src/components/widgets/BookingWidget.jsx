@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar, Clock, User, Mail } from 'lucide-react';
 
-export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
+export function BookingWidget({ date, slots, onConfirm, disabled }) {
   const [selectedSlot, setSelectedSlot] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const slots = slotsStr
-    ? slotsStr.split(',').map((s) => s.trim()).filter(Boolean)
-    : [];
+  const timeLabelId = useId();
+  const nameId = useId();
+  const emailId = useId();
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -32,9 +32,9 @@ export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
 
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {/* Slot Picker */}
-        <div role="group" aria-labelledby={`booking-time-label-${date}`}>
+        <div role="group" aria-labelledby={timeLabelId}>
           <div
-            id={`booking-time-label-${date}`}
+            id={timeLabelId}
             className="text-xs font-semibold text-secondary mb-2 flex items-center gap-1.5"
           >
             <Clock className="w-3 h-3" />
@@ -44,7 +44,8 @@ export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
             {slots.map((slot) => (
               <button
                 key={slot}
-                type="button"
+                  type="button"
+                  disabled={disabled}
                 aria-pressed={selectedSlot === slot}
                 onClick={() => setSelectedSlot(slot)}
                 className={`px-3.5 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
@@ -62,9 +63,12 @@ export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
         {/* Contact Form */}
         {selectedSlot && (
           <div className="space-y-3 pt-3 border-t border-border animate-slide-up">
-            <div className="relative">
+            <div>
+              <label htmlFor={nameId} className="field-label">Your name</label>
+              <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
               <Input
+                id={nameId}
                 type="text"
                 required
                 placeholder="Your Full Name"
@@ -74,10 +78,14 @@ export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
                 onChange={(e) => setName(e.target.value)}
                 disabled={disabled}
               />
+              </div>
             </div>
-            <div className="relative">
+            <div>
+              <label htmlFor={emailId} className="field-label">Email address</label>
+              <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
               <Input
+                id={emailId}
                 type="email"
                 required
                 placeholder="Your Email Address"
@@ -87,6 +95,7 @@ export function BookingWidget({ date, slotsStr, onConfirm, disabled }) {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={disabled}
               />
+              </div>
             </div>
             <Button
               type="submit"

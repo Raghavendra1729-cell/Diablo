@@ -1,9 +1,16 @@
-export function StatusDot() {
+const COLORS = {
+  checking: 'bg-amber-400',
+  degraded: 'bg-amber-400',
+  offline: 'bg-danger',
+  online: 'bg-success',
+};
+
+export function StatusDot({ status = 'online' }) {
+  const color = COLORS[status] || COLORS.checking;
   return (
     <span className="relative inline-flex w-[10px] h-[10px] align-middle">
-      <span className="status-ring bg-success/30" style={{ animationDelay: '0s' }} />
-      <span className="status-ring bg-success/20" style={{ animationDelay: '0.8s' }} />
-      <span className="relative w-[10px] h-[10px] rounded-full bg-success shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+      <span className={`status-ring ${color} opacity-30`} style={{ animationDelay: '0s' }} />
+      <span className={`relative w-[10px] h-[10px] rounded-full ${color} shadow-sm`} />
     </span>
   );
 }

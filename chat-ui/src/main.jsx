@@ -1,5 +1,7 @@
 import { StrictMode, Component } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RefreshCw, ShieldAlert } from 'lucide-react'
+import '@fontsource-variable/geist'
 import './index.css'
 import App from './App.jsx'
 
@@ -19,7 +21,19 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      return <div style={{ padding: '20px', color: 'red' }}>Something went wrong while rendering the UI.</div>;
+      return (
+        <main className="recovery-screen">
+          <div className="recovery-card">
+            <span className="recovery-icon"><ShieldAlert /></span>
+            <p className="hero-eyebrow">Diablo recovery mode</p>
+            <h1>The interface hit an unexpected error.</h1>
+            <p>No booking was submitted. Reload the experience and try again.</p>
+            <button type="button" onClick={() => window.location.reload()}>
+              <RefreshCw className="w-4 h-4" /> Reload Diablo
+            </button>
+          </div>
+        </main>
+      );
     }
 
     return this.props.children;

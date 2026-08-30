@@ -1,14 +1,11 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, User, Copy, Check } from 'lucide-react';
+import { Bot, User, Copy, Check, AlertTriangle, RotateCcw } from 'lucide-react';
 import { BookingWidget } from '../widgets/BookingWidget';
 import { CalendarWidget } from '../widgets/CalendarWidget';
 import { BookingReceipt } from '../widgets/BookingReceipt';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-
-const widgetRegex = /\[BOOKING_WIDGET\s+date="([^"]+)"\s+slots="([^"]*)"\]/;
-const calendarWidgetRegex = /\[CALENDAR_WIDGET\]/;
 
 /* ─── Custom markdown renderers ─── */
 function CodeBlock({ children, className }) {
@@ -51,6 +48,7 @@ function CodeBlock({ children, className }) {
 const markdownComponents = {
   pre: ({ children }) => children,
   code: ({ children, className, node, ...props }) => {
+    void node;
     const match = /language-(\w+)/.exec(className || '');
     const hasNewline = String(children).includes('\n');
     if (!match && !hasNewline) {
@@ -80,13 +78,13 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
   }, []);
 
   const contentStr = typeof msg.content === 'string' ? msg.content : '';
-
-  const match = !isUser ? contentStr.match(widgetRegex) : null;
-  const calendarMatch = !isUser ? contentStr.match(calendarWidgetRegex) : null;
-
-  let contentWithoutWidget = contentStr;
-  if (match) contentWithoutWidget = contentWithoutWidget.replace(widgetRegex, '');
-  if (calendarMatch) contentWithoutWidget = contentWithoutWidget.replace(calendarWidgetRegex, '');
+  const contentWithoutWidget = contentStr;
+  const bookingUI = !isUser && msg.ui?.type === 'booking' ? msg.ui : null;
+  const calendarUI = !isUser && msg.ui?.type === 'calendar';
+  const hasRichWidget = Boolean(bookingUI || calendarUI || msg.booking_confirmed);
+  const timestamp = msg.createdAt
+    ? new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(msg.createdAt)
+    : '';
 
   const handleCopy = useCallback(async () => {
     if (copyTimeout.current) clearTimeout(copyTimeout.current);
@@ -132,7 +130,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
 
       {/* Content */}
       <div
-        className={`max-w-[82%] sm:max-w-[72%] flex flex-col ${
+        className={`${hasRichWidget ? 'max-w-[calc(100%_-_2.75rem)] sm:max-w-[84%]' : 'max-w-[88%] sm:max-w-[72%]'} flex flex-col ${
           isUser ? 'items-end' : 'items-start'
         } gap-1 min-w-0`}
       >
@@ -141,10 +139,13 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
           className={`${
             isUser
               ? 'bg-gradient-to-br from-accent to-accent2 text-white rounded-[24px] rounded-tr-[4px] shadow-lg shadow-accent/20'
-              : 'glass rounded-[24px] rounded-bl-[4px] shadow-sm'
-          } px-5 py-4 overflow-x-auto break-words min-w-0 max-w-full relative group/bubble transition-transform hover:-translate-y-0.5`}
+              : msg.isError
+                ? 'error-card rounded-[20px] rounded-bl-[4px]'
+                : 'glass rounded-[24px] rounded-bl-[4px] shadow-sm'
+          } px-4 sm:px-5 py-3.5 sm:py-4 overflow-x-auto break-words min-w-0 max-w-full relative group/bubble transition-transform hover:-translate-y-0.5`}
         >
-          <div className={`text-[15px] leading-relaxed ${isUser ? 'text-white' : 'chat-prose'}`}>
+          <div className={`text-[15px] leading-relaxed ${isUser ? 'text-white' : 'chat-prose'} ${msg.isError ? 'flex gap-2.5 items-start' : ''}`}>
+            {msg.isError && <AlertTriangle className="w-4 h-4 mt-1 shrink-0 text-danger" aria-hidden="true" />}
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={markdownComponents}
@@ -153,18 +154,30 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
             </ReactMarkdown>
           </div>
 
+          {msg.isError && msg.retryText && (
+            <button
+              type="button"
+              onClick={() => onSendMessage(msg.retryText)}
+              disabled={isDisabled}
+              className="retry-button mt-3"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retry
+            </button>
+          )}
+
           {/* Booking widget */}
-          {match && !isUser && (
+          {bookingUI && (
             <BookingWidget
-              date={match[1]}
-              slotsStr={match[2]}
+              date={bookingUI.date}
+              slots={bookingUI.slots}
               onConfirm={onSendMessage}
               disabled={isDisabled}
             />
           )}
 
           {/* Calendar widget */}
-          {calendarMatch && !isUser && (
+          {calendarUI && (
             <CalendarWidget onConfirm={onSendMessage} disabled={isDisabled} />
           )}
 
@@ -184,7 +197,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
 
         {/* Meta row: timestamp + copy */}
         <div
-          className={`flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 ${
+          className={`message-meta flex items-center gap-1 px-1 transition-opacity duration-200 ${
             isUser ? 'flex-row-reverse' : ''
           }`}
         >
@@ -192,13 +205,13 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
             className="text-[10px] text-secondary/40 select-none font-medium uppercase tracking-wide"
             aria-hidden="true"
           >
-            just now
+            {timestamp}
           </span>
-          {!isUser && (
+          {!isUser && !msg.isError && (
             <button
               type="button"
               onClick={handleCopy}
-              className="text-secondary/40 hover:text-accent focus:outline-none focus:text-accent transition-all hover:scale-110 active:scale-90"
+              className="copy-button text-secondary/50 hover:text-accent focus:outline-none focus:text-accent transition-all active:scale-90"
               title="Copy message"
               aria-label="Copy message"
             >

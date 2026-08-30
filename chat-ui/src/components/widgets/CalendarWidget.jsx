@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useCalendar } from '@/models/useCalendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,10 @@ export function CalendarWidget({ onConfirm, disabled }) {
   const [selectedSlot, setSelectedSlot] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const dateId = useId();
+  const timeLabelId = useId();
+  const nameId = useId();
+  const emailId = useId();
 
   const { slots, loading, error, fetchSlots } = useCalendar();
 
@@ -45,14 +49,14 @@ export function CalendarWidget({ onConfirm, disabled }) {
         {/* Date Picker */}
         <div>
           <label
-            htmlFor="calendar-date"
+            htmlFor={dateId}
             className="text-xs font-semibold text-secondary mb-1.5 flex items-center gap-1.5"
           >
             <Calendar className="w-3 h-3" />
             Select a Date
           </label>
           <Input
-            id="calendar-date"
+            id={dateId}
             type="date"
             required
             min={localToday}
@@ -89,9 +93,9 @@ export function CalendarWidget({ onConfirm, disabled }) {
 
         {/* Slot Picker */}
         {date && slots.length > 0 && (
-          <div className="animate-slide-up" role="group" aria-labelledby="calendar-time-label">
+          <div className="animate-slide-up" role="group" aria-labelledby={timeLabelId}>
             <div
-              id="calendar-time-label"
+              id={timeLabelId}
               className="text-xs font-semibold text-secondary mb-2 flex items-center gap-1.5"
             >
               <Clock className="w-3 h-3" />
@@ -121,9 +125,12 @@ export function CalendarWidget({ onConfirm, disabled }) {
         {/* Contact Form */}
         {selectedSlot && (
           <div className="space-y-3 pt-3 border-t border-border animate-slide-up">
-            <div className="relative">
+            <div>
+              <label htmlFor={nameId} className="field-label">Your name</label>
+              <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
               <Input
+                id={nameId}
                 type="text"
                 required
                 placeholder="Your Full Name"
@@ -133,10 +140,14 @@ export function CalendarWidget({ onConfirm, disabled }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+              </div>
             </div>
-            <div className="relative">
+            <div>
+              <label htmlFor={emailId} className="field-label">Email address</label>
+              <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
               <Input
+                id={emailId}
                 type="email"
                 required
                 placeholder="Your Email Address"
@@ -146,6 +157,7 @@ export function CalendarWidget({ onConfirm, disabled }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              </div>
             </div>
             <Button
               type="submit"
