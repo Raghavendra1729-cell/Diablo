@@ -1,39 +1,60 @@
+import { ArrowDownRight, CalendarCheck2, GitFork, Radio, Trophy } from 'lucide-react';
 import { SuggestionChip } from './SuggestionChip';
 import heroGraphic from '@/assets/hero.png';
 
 export function EmptyState({ suggestions, onSelect }) {
   return (
-    <div className="empty-state flex-1 flex flex-col items-center justify-start sm:justify-center text-center px-1 sm:px-4 relative z-10 py-3 sm:py-6">
-      <div className="hero-mark relative mb-3 sm:mb-5" aria-hidden="true">
-        <div className="hero-orbit" />
-        <img src={heroGraphic} alt="" className="w-20 h-20 sm:w-28 sm:h-28 object-contain relative z-10" />
-      </div>
+    <div className="empty-state intelligence-stage flex-1 relative z-10">
+      <section className="briefing-hero" aria-labelledby="diablo-heading">
+        <div className="hero-topline">
+          <span className="live-signal"><Radio className="w-3.5 h-3.5" /> Live candidate intelligence</span>
+          <span className="briefing-index">BRIEF / 01</span>
+        </div>
 
-      <p className="hero-eyebrow mb-2">AI portfolio concierge</p>
-      <h2 className="text-[2rem] sm:text-5xl font-display font-bold mb-3 tracking-[-0.04em] leading-[1.05] text-primary">
-        Meet <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-accent2">Diablo</span>
-      </h2>
+        <div className="hero-visual" aria-hidden="true">
+          <div className="hero-mark relative">
+            <div className="hero-orbit" />
+            <img src={heroGraphic} alt="" className="hero-image object-contain relative z-10" />
+          </div>
+          <div className="scan-line" />
+        </div>
 
-      <p className="text-sm sm:text-[17px] text-secondary max-w-xl leading-relaxed mb-4 sm:mb-6 animate-fade-in font-medium px-2">
-        Explore Linga Seetha Rama Raghavendra's engineering work, technical depth,
-        and live interview availability through one focused assistant.
-      </p>
+        <p className="hero-eyebrow">Meet Diablo</p>
+        <h2 id="diablo-heading" className="hero-title">
+          Evidence over <span>claims.</span>
+        </h2>
+        <p className="hero-copy">
+          Ask one focused assistant about Linga's engineering work, inspect project
+          decisions, or move directly from evaluation to an interview.
+        </p>
 
-      <div className="capability-strip mb-4 sm:mb-6" aria-label="Capabilities">
-        <span>Portfolio intelligence</span>
-        <span>Project architecture</span>
-        <span>Interview scheduling</span>
-      </div>
+        <div className="proof-row" aria-label="Candidate highlights">
+          <div><GitFork aria-hidden="true" /><strong>24+</strong><span>repositories</span></div>
+          <div><Trophy aria-hidden="true" /><strong>900+</strong><span>problems solved</span></div>
+          <div><CalendarCheck2 aria-hidden="true" /><strong>Live</strong><span>scheduling</span></div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-2xl">
-        {suggestions.map((suggestion) => (
-          <SuggestionChip
-            key={suggestion.title}
-            suggestion={suggestion}
-            onClick={() => onSelect(suggestion.title)}
-          />
-        ))}
-      </div>
+      <aside className="briefing-menu" aria-label="Start a candidate briefing">
+        <div className="menu-heading">
+          <div>
+            <span className="menu-kicker">Choose a line of inquiry</span>
+            <h3>Start a briefing</h3>
+          </div>
+          <ArrowDownRight aria-hidden="true" />
+        </div>
+        <div className="inquiry-list">
+          {suggestions.map((suggestion, index) => (
+            <SuggestionChip
+              key={suggestion.title}
+              index={index + 1}
+              suggestion={suggestion}
+              onClick={() => onSelect(suggestion.title)}
+            />
+          ))}
+        </div>
+        <p className="menu-footnote">Answers are generated from portfolio evidence. Scheduling uses live availability.</p>
+      </aside>
     </div>
   );
 }

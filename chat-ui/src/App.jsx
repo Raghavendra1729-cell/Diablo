@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Bot, ChevronDown, Send, Sparkles, ShieldCheck } from 'lucide-react';
+import { Bot, ChevronDown, Command, Send, ShieldCheck } from 'lucide-react';
 import { useChat } from './models/useChat';
 import { useServiceStatus } from './models/useServiceStatus';
 import { EdgeGlows } from './components/chat/EdgeGlows';
@@ -62,7 +62,7 @@ export default function App() {
 
       {/* ─── Header ─── */}
       <header className="shrink-0 px-4 sm:px-6 py-3.5 header-glass z-20">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div className="relative">
               <Avatar className="w-10 h-10 shadow-md avatar-pulse bg-gradient-to-br from-accent to-accent2">
@@ -73,7 +73,7 @@ export default function App() {
               </span>
             </div>
             <div className="leading-tight">
-              <h1 className="text-[15px] font-bold tracking-tight text-primary">Diablo</h1>
+              <h1 className="text-[15px] font-bold tracking-tight text-primary flex items-center gap-2">Diablo <span className="brand-version">M3</span></h1>
                 <p className="text-[11px] text-secondary font-medium mt-0.5">
                   {STATUS_COPY[serviceStatus]}
                 </p>
@@ -81,15 +81,15 @@ export default function App() {
           </div>
           <div className="identity-pill text-[10px] sm:text-[11px] uppercase tracking-[0.16em] font-semibold flex items-center px-3 py-1.5 rounded-full">
             <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-accent" />
-            <span className="hidden sm:inline">Portfolio intelligence</span>
-            <Sparkles className="w-3.5 h-3.5 sm:hidden text-accent" />
+            <span className="hidden sm:inline">Evidence-backed assistant</span>
+            <span className="sm:hidden">Verified</span>
           </div>
         </div>
       </header>
 
       {/* ─── Chat ─── */}
       <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10">
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-7 min-h-full flex flex-col relative">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-7 min-h-full flex flex-col relative">
           {!hasMessages && !loading && (
             <EmptyState suggestions={SUGGESTIONS} onSelect={sendMessage} />
           )}
@@ -120,7 +120,7 @@ export default function App() {
 
       {/* ─── Input ─── */}
       <footer className="composer-footer shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-3 z-20">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <form onSubmit={handleSubmit}>
             <div className="flex items-end gap-3 input-wrap px-4 sm:px-5 py-3 transition-all">
               <textarea
@@ -143,10 +143,8 @@ export default function App() {
                 <Send className="w-5 h-5 translate-x-px translate-y-px drop-shadow-md" />
               </button>
             </div>
-            <p className="text-center mt-3 text-[10px] text-secondary/40 uppercase tracking-widest font-semibold select-none flex items-center justify-center gap-2">
-              <span className="w-4 h-[1px] bg-secondary/20"></span>
-              Grounded in Linga's portfolio
-              <span className="w-4 h-[1px] bg-secondary/20"></span>
+            <p className="composer-note text-center mt-3 text-[10px] uppercase tracking-widest font-semibold select-none flex items-center justify-center gap-2">
+              <Command className="w-3 h-3" /> Enter to send <span aria-hidden="true">·</span> Shift + Enter for a new line
             </p>
           </form>
         </div>
