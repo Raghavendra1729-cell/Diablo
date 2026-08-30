@@ -38,19 +38,19 @@ router = APIRouter()
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _STATE_CHANGING_TOOLS = (
-    "book_slot", "book_interview", "book_meeting",
-    "cancel_booking", "cancel_meeting",
-    "reschedule_booking", "reschedule_meeting",
-)
-
-_REASONING_RETRY_MSG = (
-    "Your response was too long. Output SHORT JSON (max 2 sentences "
-    "for 'response' field). Just the spoken words, no reasoning."
+    "book_meeting",
+    "cancel_meeting",
+    "reschedule_meeting",
 )
 
 _JSON_RETRY_MSG = (
-    '{"response": "...", "tool_call": null} or '
-    '{"response": "...", "tool_call": {"name": "X", "arguments": {...}}}'
+    'Your last response failed schema validation. Return exactly one JSON object '
+    'with only "response", "tool_call", and "ui". Use null where appropriate.'
+)
+
+_BOOKING_CONFIRMATION = re.compile(
+    r"^\s*(?:yes\b|confirm(?:ed)?\b|go\s+ahead\b|book\s+it\b|let['’]s\s+do\b)",
+    re.IGNORECASE,
 )
 
 # Compiled once at module load — used in Stage 2 retrieval bypass
@@ -133,6 +133,20 @@ def _resolve_booking_email(raw_email: str, normalized_email: str | None) -> str:
     return fast_normalize(raw_email) or raw_email
 
 
+def _is_explicit_booking_confirmation(user_message: str) -> bool:
+    """Only mutate the calendar after an explicit confirmation turn or widget action."""
+    return bool(_BOOKING_CONFIRMATION.search(user_message))
+
+
+def _booking_confirmation_message(tool_call: dict) -> str:
+    args = tool_call.get("arguments", {})
+    return (
+        "Please confirm these interview details before I book them: "
+        f"{args.get('date')} at {args.get('time')} for {args.get('name')} "
+        f"({args.get('email')}). Is that correct?"
+    )
+
+
 # ── Tool result formatting ────────────────────────────────────────────────────
 
 def _format_tool_result(tool_name: str, result, tool_call: dict, channel: str) -> str:
@@ -203,8 +217,8 @@ async def health_check(ping_llm: bool = False):
             )
         except Exception as e:
             logger.warning("[health] LLM ping failed: %s", e)
-            return {"status": "degraded", "message": "Backend running but LLM ping failed."}
-    return {"status": "ok", "message": "Backend is running flawlessly"}
+            return {"status": "degraded", "service": "api", "llm_reachable": False}
+    return {"status": "ok", "service": "api"}
 
 
 @router.get("/ready")
@@ -212,29 +226,31 @@ async def readiness_check():
     from src.vectordb.vector_store import check_collection_ready
     from src.config import CAL_API_KEY, HF_TOKEN, QDRANT_URL
     
-    issues = []
+    issues: list[str] = []
     rag_ready = False
     try:
         ready, count = check_collection_ready()
         rag_ready = ready and count > 0
         if not rag_ready:
-            issues.append(f"Qdrant empty ({count} points)")
+            issues.append("rag_empty")
     except Exception as e:
-        issues.append(f"Qdrant unreachable: {e}")
+        logger.error("[ready] Qdrant readiness failed: %s", e)
+        issues.append("rag_unavailable")
     
     calendar_ready = bool(CAL_API_KEY)
     if not calendar_ready:
-        issues.append("CAL_API_KEY missing")
+        issues.append("calendar_unconfigured")
     
     llm_ready = bool(HF_TOKEN)
     if not llm_ready:
-        issues.append("HF_TOKEN missing")
+        issues.append("llm_unconfigured")
     
     all_ready = rag_ready and calendar_ready and llm_ready
     return JSONResponse(
         status_code=200 if all_ready else 503,
         content={
             "ready": all_ready,
+            "status": "ready" if all_ready else "degraded",
             "rag_ready": rag_ready,
             "calendar_ready": calendar_ready,
             "llm_configured": llm_ready,
@@ -297,8 +313,8 @@ async def chat(request: ChatRequest):
         max_search_turns = LLM_MAX_SEARCH_TURNS  # from config.yaml (default 3)
         search_turns = 0
         result = None
+        ui_payload = None
         json_parse_failures = 0
-        reasoning_leak_retries = 0
         total_llm_calls = 0
 
         while True:
@@ -314,7 +330,7 @@ async def chat(request: ChatRequest):
                 raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
             # Parse LLM output
-            llm_text_response, tool_call = parse_llm_output(response_text, request.channel)
+            llm_text_response, tool_call, model_ui = parse_llm_output(response_text)
 
             if llm_text_response is None:
                 json_parse_failures += 1
@@ -331,6 +347,8 @@ async def chat(request: ChatRequest):
                     return ChatResponse(response="I encountered a formatting issue. Please try again.")
             else:
                 json_parse_failures = 0
+                if model_ui is not None:
+                    ui_payload = model_ui
 
             # Voice quality guard: detect leaked reasoning
             if request.channel == "voice" and llm_text_response and has_reasoning_leak(llm_text_response):
@@ -353,6 +371,12 @@ async def chat(request: ChatRequest):
                 search_turns += 1
                 try:
                     result = await execute_tool(tool_call)
+                    if tool_name == "check_availability" and result.success and result.data:
+                        ui_payload = {
+                            "type": "booking",
+                            "date": tool_call["arguments"]["date"],
+                            "slots": result.data.get("slots", []),
+                        }
                     messages.append({"role": "assistant", "content": response_text})
                     tool_result_content = _format_tool_result(tool_name, result, tool_call, request.channel)
                     messages.append({"role": "user", "content": tool_result_content})
@@ -363,6 +387,9 @@ async def chat(request: ChatRequest):
                     return ChatResponse(response="I encountered an error gathering information.")
 
             # State-changing tools: execute and break
+            if tool_name == "book_meeting" and not _is_explicit_booking_confirmation(user_message):
+                logger.info("[routes] Booking tool held for explicit user confirmation.")
+                return ChatResponse(response=_booking_confirmation_message(tool_call))
             try:
                 result = await execute_tool(tool_call)
                 break
@@ -374,7 +401,7 @@ async def chat(request: ChatRequest):
         if tool_call and result:
             return await _handle_booking_result(tool_name, tool_call, result, request.channel, normalized_email)
 
-        return ChatResponse(response=llm_text_response, tool_call=tool_call)
+        return ChatResponse(response=llm_text_response, tool_call=tool_call, ui=ui_payload)
 
     except HTTPException:
         raise
@@ -393,7 +420,7 @@ async def _handle_booking_result(
     """Process booking/cancel/reschedule tool results (async — _handle_slot_unavailable is async)."""
     args = tool_call.get("arguments", {})
 
-    if tool_name in ("book_slot", "book_interview", "book_meeting"):
+    if tool_name == "book_meeting":
         date = args.get("date", "")
         booking_time = args.get("time", "")
         email = _resolve_booking_email(args.get("email", ""), normalized_email)
@@ -427,7 +454,7 @@ async def _handle_booking_result(
 
         return ChatResponse(response=result.message)
 
-    if tool_name in ("cancel_booking", "cancel_meeting", "reschedule_booking", "reschedule_meeting"):
+    if tool_name in ("cancel_meeting", "reschedule_meeting"):
         return ChatResponse(response=result.message)
 
     logger.info("[routes] Unhandled tool name '%s' — returning message.", tool_name)
@@ -492,13 +519,13 @@ async def vapi_chat_completions(req: dict):
         for m in messages[:-1]:
             role = "assistant" if m.get("role") == "function" else m.get("role", "user")
             content = m.get("content") or ""
-            if role in ("user", "assistant", "system") and content:
+            if role in ("user", "assistant") and content:
                 history.append(Message(role=role, content=content))
     except Exception as e:
         logger.error("[routes] Vapi: message translation failed: %s", e)
         history = []
 
-    chat_req = ChatRequest(message=user_message, history=history, channel="voice")
+    chat_req = ChatRequest(message=user_message, history=history[-20:], channel="voice")
 
     try:
         chat_resp = await chat(chat_req)

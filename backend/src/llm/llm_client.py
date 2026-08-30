@@ -1,14 +1,9 @@
-"""LLM client — OpenAI-compatible interface pointed at HuggingFace inference endpoint.
-
-Singleton is protected with threading.Lock. Requests include a 60-second timeout
-to prevent the event loop from hanging indefinitely.
-"""
+"""Async wrapper for strict structured output through Hugging Face Router."""
 import asyncio
 import logging
-import threading
-from typing import Optional
 from openai import OpenAI
 from starlette.concurrency import run_in_threadpool
+from src.api.schemas import LLMOutputSchema
 from src.config import (
     LLM_BASE_URL,
     LLM_MODEL,
@@ -24,6 +19,15 @@ logger = logging.getLogger(__name__)
 
 LLM_TIMEOUT_VOICE = 10   # aggressive; allows 2 tool turns inside 30s Vapi window
 LLM_TIMEOUT_WEB   = 25  # web has no strict deadline
+
+_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "diablo_response",
+        "schema": LLMOutputSchema.model_json_schema(),
+        "strict": True,
+    },
+}
 
 
 def get_client(timeout: int) -> OpenAI:
@@ -52,13 +56,7 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
     """
     max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
     temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
-    # Voice needs json_object too — otherwise some models output plain text
-    # and tool calls are lost. Robust fallback parsing in _parse_llm_output handles
-    # any malformed JSON safely.
-    use_json = True
-
     last_exc = None
-    tried_json_fallback = False
     for attempt in range(max_retries + 1):
         try:
             timeout = LLM_TIMEOUT_VOICE if channel == "voice" else LLM_TIMEOUT_WEB
@@ -70,8 +68,7 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
                 "temperature": temperature,
                 "top_p": LLM_TOP_P,
             }
-            if use_json:
-                create_kwargs["response_format"] = {"type": "json_object"}
+            create_kwargs["response_format"] = _RESPONSE_FORMAT
 
             response = await run_in_threadpool(
                 lambda: client.chat.completions.create(**create_kwargs)
@@ -83,20 +80,11 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
             exc_str = str(exc).lower()
             if channel == "voice" and "timeout" in exc_str:
                 logger.warning("[llm] TimeoutError for voice channel. Using graceful fallback.")
-                return '{"response": "One moment — I am still consulting his records. Could you repeat your question?", "tool_call": null}'
+                return '{"response":"One moment — I am still consulting his records. Could you repeat your question?","tool_call":null,"ui":null}'
 
-            # If json_object causes errors, fall back to plain text on next attempt
-            if use_json and not tried_json_fallback:
-                logger.warning(
-                    "[llm] json_object may be unsupported, falling back to plain text. Error: %s", exc
-                )
-                use_json = False
-                tried_json_fallback = True
-                await asyncio.sleep(0.5)
-                continue
             if attempt < max_retries:
                 wait = 2 ** attempt
                 logger.warning("[llm] Attempt %d failed, retrying in %ds: %s", attempt + 1, wait, exc)
                 await asyncio.sleep(wait)
     logger.error("[llm] All %d attempts failed: %s", max_retries + 1, last_exc)
-    return '{"thought_process": "Error occurred.", "response": "I am experiencing a temporary issue. Please try again in a moment.", "tool_call": null}'
+    return '{"response":"I am experiencing a temporary issue. Please try again in a moment.","tool_call":null,"ui":null}'

@@ -9,12 +9,12 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "message": "Backend is running flawlessly"}
+    assert response.json() == {"status": "ok", "service": "api"}
 
 
 def test_chat_empty_message():
     response = client.post("/v1/chat", json={"message": "", "channel": "web"})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_chat_guardrail_blocked():
@@ -49,8 +49,8 @@ def test_chat_clean_message():
 
 
 def test_availability_mock():
-    response = client.get("/v1/availability?date=2026-06-10")
+    response = client.get("/v1/availability?date=2099-06-10")
     assert response.status_code == 200
     data = response.json()
-    assert data["date"] == "2026-06-10"
+    assert data["date"] == "2099-06-10"
     assert len(data["available_slots"]) > 0

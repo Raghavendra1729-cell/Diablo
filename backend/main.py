@@ -3,6 +3,7 @@ import os
 import time
 import asyncio
 import logging
+import ipaddress
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -33,6 +34,18 @@ _ip_in_flight: set[str] = set()
 
 # Endpoints that invoke the LLM — both must be protected
 _LLM_ENDPOINTS = {"/v1/chat", "/chat/completions"}
+
+
+def _client_key(request: Request) -> str:
+    """Use the rightmost public forwarded address added by the trusted proxy."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    for candidate in reversed([part.strip() for part in forwarded.split(",") if part.strip()]):
+        try:
+            if ipaddress.ip_address(candidate).is_global:
+                return candidate
+        except ValueError:
+            continue
+    return request.client.host if request.client else "unknown"
 
 
 @asynccontextmanager
@@ -103,12 +116,7 @@ async def guard_llm_endpoints(request: Request, call_next):
     if request.url.path not in _LLM_ENDPOINTS or request.method != "POST":
         return await call_next(request)
 
-    # Use x-forwarded-for if behind a proxy like HuggingFace Spaces
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
-    else:
-        client_ip = request.client.host if request.client else "unknown"
+    client_ip = _client_key(request)
         
     now = time.time()
 
@@ -199,6 +207,10 @@ if os.path.isdir(frontend_dist):
         StaticFiles(directory=os.path.join(frontend_dist, "assets")),
         name="assets",
     )
+
+    @app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
+    async def serve_favicon():
+        return FileResponse(os.path.join(frontend_dist, "favicon.svg"), media_type="image/svg+xml")
 
     @app.get("/{full_path:path}")
     async def serve_react(full_path: str):

@@ -1,80 +1,29 @@
-"""Robust LLM output parsing — extracts response text and tool calls from JSON.
-
-Voice must never fail with "formatting issue". Four strategies + last-resort
-text cleaner ensure graceful recovery from malformed LLM output.
-"""
+"""Strict model-output parsing plus a voice-only spoken-text fallback."""
 import re
 import logging
-from typing import Optional
 
 from src.api.schemas import LLMOutputSchema
 
 logger = logging.getLogger(__name__)
 
 
-def parse_llm_output(raw: str, channel: str) -> tuple[Optional[str], Optional[dict]]:
-    """Parse LLM output into (response_text, tool_call_dict).
+def parse_llm_output(raw: str) -> tuple[str | None, dict | None, dict | None]:
+    """Validate exactly one JSON object against the server-owned schema.
 
-    Returns (None, None) if parsing completely fails and retry needed.
-    For voice, falls back to using raw text as response on final attempt.
+    No substring extraction, repair, or permissive JSON fallback is allowed:
+    malformed model output is retried by the route and never reaches a tool.
     """
     if not raw or not raw.strip():
-        return (None, None)
-    raw = raw.strip()
-
-    # Strategy 1: Strict Pydantic JSON parse (after stripping markdown fences)
+        return (None, None, None)
     try:
-        cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
-        cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE)
-        cleaned = cleaned.strip()
-        parsed = LLMOutputSchema.model_validate_json(cleaned)
-        tc = parsed.tool_call.model_dump() if parsed.tool_call else None
-        return (parsed.response, tc)
-    except Exception:
-        pass
+        parsed = LLMOutputSchema.model_validate_json(raw.strip())
+    except Exception as exc:
+        logger.warning("[output_parser] Strict schema validation failed: %s", exc)
+        return (None, None, None)
 
-    # Strategy 2: Find { ... } substring, try fixes for common JSON errors
-    try:
-        start = raw.find('{')
-        end = raw.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            json_str = raw[start:end + 1]
-            fixes = [json_str]
-            # Missing closing brace
-            if json_str.count('{') > json_str.count('}'):
-                fixes.append(json_str + '}')
-            # Trailing comma before }
-            fixes.append(re.sub(r',\s*}', '}', json_str))
-            for fixed in fixes:
-                try:
-                    parsed = LLMOutputSchema.model_validate_json(fixed)
-                    tc = parsed.tool_call.model_dump() if parsed.tool_call else None
-                    return (parsed.response, tc)
-                except Exception:
-                    continue
-    except Exception:
-        pass
-
-    # Strategy 3: Voice — use raw text as response, stripping JSON fragments
-    if channel == "voice":
-        text = re.sub(r'\{[^}]*\}', '', raw)
-        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
-        text = re.sub(r'\[BOOKING_WIDGET[^\]]*\]', '', text)
-        text = re.sub(r'\[CALENDAR_WIDGET\]', '', text)
-        text = re.sub(r'"thought_process"\s*:\s*"[^"]*"', '', text)
-        text = re.sub(r'"response"\s*:\s*"', '', text)
-        text = re.sub(r'"tool_call"\s*:\s*null', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
-        if text and len(text) > 3:
-            return (text, None)
-
-    # Strategy 4: Regex extract "response" field from malformed JSON
-    resp_match = re.search(r'"response"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
-    if resp_match:
-        text = resp_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-        return (text, None)
-
-    return (None, None)
+    tool_call = parsed.tool_call.model_dump(exclude_none=True) if parsed.tool_call else None
+    ui = parsed.ui.model_dump(exclude_none=True) if parsed.ui else None
+    return (parsed.response, tool_call, ui)
 
 
 def clean_voice_text(raw: str) -> str:

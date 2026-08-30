@@ -2,7 +2,7 @@
 FROM node:20 AS frontend-builder
 WORKDIR /app/chat-ui
 COPY chat-ui/package*.json ./
-RUN npm install
+RUN npm ci
 COPY chat-ui/ .
 RUN npm run build
 
