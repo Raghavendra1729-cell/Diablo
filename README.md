@@ -45,7 +45,7 @@ graph LR
     B --> E{FastAPI Backend}
     D --> E
     E <-->|Dense/Sparse RAG| F[(Qdrant Vector DB<br>4.2k chunks)]
-    E -->|Strict JSON Schema| G[Hugging Face Router<br>Qwen3-32B]
+    E -->|Strict JSON Schema| G[Hugging Face Router<br>MiniMax M3]
     E <-->|Live Booking| H[Cal.com v2 API]
 ```
 

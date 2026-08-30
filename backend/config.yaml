@@ -15,7 +15,7 @@ retrieval:
   top_k: 10                       
 
 llm:
-  model: "Qwen/Qwen3-32B:fastest"
+  model: "MiniMaxAI/MiniMax-M3"
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
   max_tokens: 3000        
