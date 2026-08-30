@@ -52,6 +52,8 @@ _BOOKING_CONFIRMATION = re.compile(
     r"^\s*(?:yes\b|confirm(?:ed)?\b|go\s+ahead\b|book\s+it\b|let['’]s\s+do\b)",
     re.IGNORECASE,
 )
+_BOOKING_INTENT = re.compile(r"\b(?:book|schedule|interview|meeting|availability)\b", re.IGNORECASE)
+_ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 # Compiled once at module load — used in Stage 2 retrieval bypass
 _SKIP_RETRIEVAL = re.compile(
@@ -136,6 +138,15 @@ def _resolve_booking_email(raw_email: str, normalized_email: str | None) -> str:
 def _is_explicit_booking_confirmation(user_message: str) -> bool:
     """Only mutate the calendar after an explicit confirmation turn or widget action."""
     return bool(_BOOKING_CONFIRMATION.search(user_message))
+
+
+def _needs_calendar_ui(user_message: str, channel: str) -> bool:
+    """Show date selection reliably instead of depending on model wording."""
+    return (
+        channel == "web"
+        and bool(_BOOKING_INTENT.search(user_message))
+        and not bool(_ISO_DATE.search(user_message))
+    )
 
 
 def _booking_confirmation_message(tool_call: dict) -> str:
@@ -404,6 +415,8 @@ async def chat(request: ChatRequest):
         if tool_call and result:
             return await _handle_booking_result(tool_name, tool_call, result, request.channel, normalized_email)
 
+        if ui_payload is None and _needs_calendar_ui(user_message, request.channel):
+            ui_payload = {"type": "calendar"}
         return ChatResponse(response=llm_text_response, tool_call=tool_call, ui=ui_payload)
 
     except HTTPException:
