@@ -19,18 +19,11 @@ function GithubIcon(props) {
 }
 
 const SUGGESTIONS = [
-  { title: 'Why hire Linga?', description: 'Evidence-backed candidate brief and engineering impact', icon: 'briefcase' },
-  { title: 'Technical strengths', description: 'Agentic workflows, custom RAG, and backend architecture', icon: 'code' },
-  { title: 'Book an interview', description: 'Check live availability and schedule directly on Cal.com', icon: 'calendar' },
-  { title: 'Explore key projects', description: 'Inspect 24+ open-source repos, models, and systems', icon: 'projects' },
+  { title: 'Why hire Linga?', description: 'Strengths, engineering background, and impact', icon: 'briefcase' },
+  { title: 'Technical skills & stack', description: 'AI systems, LLMs, Python, RAG, and architecture', icon: 'code' },
+  { title: 'Book an interview', description: 'Check live calendar and schedule a meeting', icon: 'calendar' },
+  { title: 'Projects & experience', description: 'Explore open-source repos, models, and work history', icon: 'projects' },
 ];
-
-const STATUS_COPY = {
-  checking: 'Checking services...',
-  online: 'All systems online',
-  degraded: 'Portfolio search limited',
-  offline: 'Service offline',
-};
 
 export default function App() {
   const serviceStatus = useServiceStatus();
@@ -51,19 +44,20 @@ export default function App() {
   } = useChat();
 
   useEffect(() => {
-    document.title = "Diablo | AI Portfolio Concierge";
+    document.title = "Diablo | Linga's Personal AI";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute("content", "Explore Linga Seetha Rama Raghavendra's engineering work and interview availability with Diablo.");
+      metaDesc.setAttribute("content", "Chat with Diablo, Linga Seetha Rama Raghavendra's personal AI assistant for skills, experience, and interview scheduling.");
     } else {
       const meta = document.createElement('meta');
       meta.name = "description";
-      meta.content = "Explore Linga Seetha Rama Raghavendra's engineering work and interview availability with Diablo.";
+      meta.content = "Chat with Diablo, Linga Seetha Rama Raghavendra's personal AI assistant for skills, experience, and interview scheduling.";
       document.head.appendChild(meta);
     }
   }, []);
 
   const hasMessages = messages.length > 0;
+  const isOnline = serviceStatus === 'online' || serviceStatus === 'degraded';
 
   return (
     <div className="h-[100dvh] flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden selection:bg-orange-500/25 selection:text-white">
@@ -79,14 +73,14 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-semibold tracking-tight text-zinc-100">Diablo</h1>
-                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-400 border border-zinc-700/50">
-                  Concierge
+                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-zinc-800/80 text-zinc-400 border border-zinc-700/40">
+                  AI Assistant
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <StatusDot status={serviceStatus} />
+                <StatusDot status={isOnline ? 'online' : serviceStatus} />
                 <p className="text-[11px] text-zinc-400 font-medium">
-                  {STATUS_COPY[serviceStatus]}
+                  {isOnline ? 'Linga\'s AI · Ready to chat' : 'Connecting...'}
                 </p>
               </div>
             </div>
@@ -176,7 +170,7 @@ export default function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about Linga's projects, systems, or schedule an interview..."
+                placeholder="Ask anything about Linga's experience or schedule an interview..."
                 className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-zinc-100 placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
                 rows={1}
                 disabled={loading}
