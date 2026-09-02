@@ -65,7 +65,7 @@ export default function App() {
 
       {/* ─── Header ─── */}
       <header className="shrink-0 px-4 sm:px-6 py-3 bg-white border-b-2 border-black z-20">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#ffde59] border-2 border-black shadow-[2px_2px_0px_0px_#000] flex items-center justify-center text-black shrink-0">
               <Flame className="w-5 h-5" />
@@ -115,7 +115,7 @@ export default function App() {
 
       {/* ─── Main Chat Canvas ─── */}
       <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-6 min-h-full flex flex-col relative">
+        <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 min-h-full flex flex-col relative">
           {!hasMessages && !loading && (
             <EmptyState suggestions={SUGGESTIONS} onSelect={sendMessage} />
           )}
@@ -162,7 +162,7 @@ export default function App() {
 
       {/* ─── Floating Composer Footer ─── */}
       <footer className="shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-2 z-20">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <form onSubmit={handleSubmit}>
             <div className="composer-wrap flex items-end gap-2.5 px-4 py-2.5 bg-white">
               <textarea
@@ -171,7 +171,7 @@ export default function App() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask anything about Linga's experience or schedule an interview..."
-                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-black font-medium placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
+                className="flex-1 max-h-60 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-black font-medium placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
                 rows={1}
                 disabled={loading}
                 aria-label="Message input"

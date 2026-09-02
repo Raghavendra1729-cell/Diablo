@@ -142,7 +142,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
       {/* Content */}
       <div
         className={`${
-          hasRichWidget ? 'max-w-[calc(100%_-_2.75rem)] sm:max-w-[85%]' : 'max-w-[88%] sm:max-w-[80%]'
+          hasRichWidget ? 'max-w-[calc(100%_-_2.75rem)] sm:max-w-[92%]' : 'max-w-[94%] sm:max-w-[90%]'
         } flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1.5 min-w-0`}
       >
         {/* Bubble */}
