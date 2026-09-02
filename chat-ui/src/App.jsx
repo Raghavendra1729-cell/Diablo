@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 
 function GithubIcon(props) {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+    <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
       <path d="M9 18c-4.51 2-5-2-7-2" />
     </svg>
@@ -60,26 +60,26 @@ export default function App() {
   const isOnline = serviceStatus === 'online' || serviceStatus === 'degraded';
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden selection:bg-orange-500/25 selection:text-white">
+    <div className="h-[100dvh] flex flex-col bg-[#fbf9f4] text-black overflow-hidden selection:bg-[#ffde59] selection:text-black">
       <EdgeGlows />
 
       {/* ─── Header ─── */}
-      <header className="shrink-0 px-4 sm:px-6 py-3 header-glass z-20 border-b border-white/[0.07]">
+      <header className="shrink-0 px-4 sm:px-6 py-3 bg-white border-b-2 border-black z-20">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400 shadow-sm">
-              <Flame className="w-4.5 h-4.5" />
+            <div className="w-9 h-9 rounded-xl bg-[#ffde59] border-2 border-black shadow-[2px_2px_0px_0px_#000] flex items-center justify-center text-black shrink-0">
+              <Flame className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold tracking-tight text-zinc-100">Diablo</h1>
-                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-zinc-800/80 text-zinc-400 border border-zinc-700/40">
-                  Personal AI
+                <h1 className="text-base font-black tracking-tight text-black">Diablo</h1>
+                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold bg-[#ffde59] text-black border border-black shadow-[1px_1px_0px_0px_#000]">
+                  AI Agent
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <StatusDot status={isOnline ? 'online' : serviceStatus} />
-                <p className="text-[11px] text-zinc-400 font-medium">
+                <p className="text-[11px] text-zinc-600 font-bold">
                   {isOnline ? "Linga's AI · Ready to chat" : 'Connecting...'}
                 </p>
               </div>
@@ -91,7 +91,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={resetChat}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black bg-white hover:bg-[#ffde59] border-2 border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                 title="Start a new chat session"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -103,7 +103,7 @@ export default function App() {
               href="https://github.com/Raghavendra1729-cell/Diablo"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black bg-white hover:bg-[#ffde59] border-2 border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
               aria-label="View Diablo on GitHub"
             >
               <GithubIcon />
@@ -153,7 +153,7 @@ export default function App() {
           variant="secondary"
           size="icon"
           onClick={() => scrollToBottom()}
-          className="fixed bottom-24 right-6 sm:right-10 w-9 h-9 flex items-center justify-center z-20 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 hover:bg-zinc-700 hover:text-white shadow-lg transition-all"
+          className="fixed bottom-24 right-6 sm:right-10 w-9 h-9 flex items-center justify-center z-20 rounded-full bg-white border-2 border-black shadow-[3px_3px_0px_0px_#000] hover:bg-[#ffde59] text-black active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
           aria-label="Scroll to bottom"
         >
           <ChevronDown className="w-4 h-4" />
@@ -164,14 +164,14 @@ export default function App() {
       <footer className="shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-2 z-20">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit}>
-            <div className="composer-wrap flex items-end gap-2.5 px-4 py-2.5 transition-all">
+            <div className="composer-wrap flex items-end gap-2.5 px-4 py-2.5 bg-white">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask anything about Linga's experience or schedule an interview..."
-                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-zinc-100 placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
+                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-black font-medium placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
                 rows={1}
                 disabled={loading}
                 aria-label="Message input"
@@ -179,15 +179,15 @@ export default function App() {
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="btn-send disabled:opacity-30 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-orange-500/50 w-8 h-8 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 shrink-0 rounded-xl bg-[#ff5c00] hover:bg-[#ff7830] text-black border-2 border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 flex items-center justify-center transition-all cursor-pointer"
                 aria-label="Send Message"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-center mt-2.5 text-[11px] text-zinc-500 select-none flex items-center justify-center gap-1.5">
+            <p className="text-center mt-2.5 text-[11px] text-zinc-600 font-bold select-none flex items-center justify-center gap-1.5">
               <span>Enter to send</span>
-              <span className="text-zinc-700">·</span>
+              <span className="text-black font-black">·</span>
               <span>Shift + Enter for new line</span>
             </p>
           </form>

@@ -7,25 +7,34 @@ const ICONS = {
   projects: Boxes,
 };
 
+const COLOR_MAP = {
+  briefcase: 'bg-[#ffde59]',
+  code: 'bg-[#38bdf8]',
+  calendar: 'bg-[#ff5c00]',
+  projects: 'bg-[#4ade80]',
+};
+
 export function SuggestionChip({ suggestion, onClick }) {
   const Icon = ICONS[suggestion.icon] || Code2;
+  const colorBg = COLOR_MAP[suggestion.icon] || 'bg-[#ffde59]';
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="suggestion-card group flex items-start gap-3.5 p-4 rounded-xl border border-white/[0.07] bg-zinc-900/50 hover:bg-zinc-900/90 hover:border-orange-500/40 transition-all text-left w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+      className="suggestion-card group flex items-start gap-3.5 p-4 rounded-xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_#000] hover:bg-[#fffdf7] text-left w-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
     >
-      <span className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0 group-hover:bg-orange-500/20 transition-all mt-0.5">
-        <Icon className="w-4 h-4" />
+      <span className={`w-9 h-9 rounded-xl ${colorBg} border-2 border-black flex items-center justify-center shrink-0 shadow-[2px_2px_0px_0px_#000] mt-0.5 text-black`}>
+        <Icon className="w-4.5 h-4.5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-zinc-100 group-hover:text-white transition-colors">
+          <span className="text-sm font-bold text-black">
             {suggestion.title}
           </span>
-          <ArrowUpRight className="w-4 h-4 text-zinc-500 group-hover:text-orange-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" aria-hidden="true" />
+          <ArrowUpRight className="w-4 h-4 text-black group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" aria-hidden="true" />
         </span>
-        <span className="block text-xs text-zinc-400 group-hover:text-zinc-300 mt-1 leading-relaxed">
+        <span className="block text-xs text-zinc-700 font-medium mt-1 leading-relaxed">
           {suggestion.description}
         </span>
       </span>

@@ -22,23 +22,23 @@ function CodeBlock({ children, className }) {
   }, [children]);
 
   return (
-    <div className="group/code relative my-3 rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-md">
+    <div className="group/code relative my-3 rounded-xl overflow-hidden border-2 border-black bg-[#18181b] shadow-[3px_3px_0px_0px_#000]">
       {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/90 border-b border-zinc-800">
-        <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#27272a] border-b-2 border-black">
+        <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-200 font-bold">
           {language || 'code'}
         </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none p-1 rounded hover:bg-zinc-800 cursor-pointer"
+          className="text-zinc-300 hover:text-white transition-colors focus:outline-none p-1 rounded hover:bg-zinc-700 cursor-pointer"
           aria-label="Copy code"
         >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? <Check className="w-3.5 h-3.5 text-[#4ade80]" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
       {/* Code body */}
-      <pre className="!mt-0 !mb-0 !rounded-none !border-0 !shadow-none !bg-zinc-950 p-4 overflow-x-auto text-sm leading-relaxed">
+      <pre className="!mt-0 !mb-0 !rounded-none !border-0 !shadow-none !bg-[#18181b] p-4 overflow-x-auto text-sm leading-relaxed text-zinc-100">
         <code className={className}>{children}</code>
       </pre>
     </div>
@@ -54,7 +54,7 @@ const markdownComponents = {
     if (!match && !hasNewline) {
       return (
         <code
-          className="bg-zinc-800/80 text-orange-300 px-1.5 py-0.5 rounded-md text-[0.85em] font-mono border border-zinc-700/50"
+          className="bg-[#ffde59] text-black px-1.5 py-0.5 rounded text-[0.85em] font-mono font-bold border-[1.5px] border-black shadow-[1px_1px_0px_0px_#000]"
           {...props}
         >
           {children}
@@ -68,10 +68,10 @@ const markdownComponents = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-0.5 text-orange-400 hover:text-orange-300 underline underline-offset-2 transition-colors"
+      className="inline-flex items-center gap-0.5 text-black font-bold underline decoration-2 underline-offset-2 hover:bg-[#ffde59] px-1 rounded transition-colors"
     >
       <span>{children}</span>
-      <ArrowUpRight className="w-3 h-3 inline-block" aria-hidden="true" />
+      <ArrowUpRight className="w-3.5 h-3.5 inline-block" aria-hidden="true" />
     </a>
   ),
 };
@@ -122,19 +122,19 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
     >
       {/* Avatar */}
       <Avatar
-        className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center shadow-sm ${
+        className={`w-8 h-8 shrink-0 rounded-xl flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_#000] ${
           isUser
-            ? 'bg-zinc-800 border border-zinc-700 text-zinc-300'
-            : 'bg-zinc-900 border border-zinc-800 text-orange-400'
+            ? 'bg-white text-black'
+            : 'bg-[#ffde59] text-black'
         }`}
       >
         {isUser ? (
           <AvatarFallback className="bg-transparent">
-            <User className="w-3.5 h-3.5" aria-label="User" />
+            <User className="w-4 h-4" aria-label="User" />
           </AvatarFallback>
         ) : (
           <AvatarFallback className="bg-transparent">
-            <Bot className="w-4 h-4" aria-label="Diablo" />
+            <Bot className="w-4.5 h-4.5" aria-label="Diablo" />
           </AvatarFallback>
         )}
       </Avatar>
@@ -142,21 +142,21 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
       {/* Content */}
       <div
         className={`${
-          hasRichWidget ? 'max-w-[calc(100%_-_2.5rem)] sm:max-w-[85%]' : 'max-w-[88%] sm:max-w-[80%]'
-        } flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1 min-w-0`}
+          hasRichWidget ? 'max-w-[calc(100%_-_2.75rem)] sm:max-w-[85%]' : 'max-w-[88%] sm:max-w-[80%]'
+        } flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1.5 min-w-0`}
       >
         {/* Bubble */}
         <div
           className={`${
             isUser
-              ? 'bg-zinc-800/90 border border-zinc-700/60 text-zinc-100 rounded-2xl rounded-tr-sm shadow-sm'
+              ? 'bg-[#ffde59] border-2 border-black text-black font-medium rounded-2xl rounded-tr-sm shadow-[3px_3px_0px_0px_#000]'
               : msg.isError
-                ? 'bg-rose-950/30 border border-rose-800/50 text-rose-200 rounded-2xl rounded-tl-sm shadow-sm'
-                : 'bg-zinc-900/70 border border-zinc-800/70 text-zinc-200 rounded-2xl rounded-tl-sm shadow-sm'
+                ? 'bg-[#fee2e2] border-2 border-black text-red-950 rounded-2xl rounded-tl-sm shadow-[3px_3px_0px_0px_#000]'
+                : 'bg-white border-2 border-black text-black rounded-2xl rounded-tl-sm shadow-[4px_4px_0px_0px_#000]'
           } px-4 sm:px-5 py-3 sm:py-3.5 overflow-x-auto break-words min-w-0 max-w-full`}
         >
-          <div className={`text-[14.5px] leading-relaxed ${isUser ? 'text-zinc-100' : 'chat-prose'} ${msg.isError ? 'flex gap-2.5 items-start' : ''}`}>
-            {msg.isError && <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" aria-hidden="true" />}
+          <div className={`text-[14.5px] leading-relaxed ${isUser ? 'text-black' : 'chat-prose'} ${msg.isError ? 'flex gap-2.5 items-start' : ''}`}>
+            {msg.isError && <AlertTriangle className="w-4.5 h-4.5 mt-0.5 shrink-0 text-red-600" aria-hidden="true" />}
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={markdownComponents}
@@ -170,7 +170,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
               type="button"
               onClick={() => onSendMessage(msg.retryText)}
               disabled={isDisabled}
-              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-300 bg-rose-900/30 border border-rose-800/50 hover:bg-rose-900/50 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-lg text-xs font-bold text-black bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] hover:bg-yellow-200 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Retry request
@@ -208,13 +208,13 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
 
         {/* Meta row: timestamp + copy */}
         <div
-          className={`flex items-center gap-1 px-1 ${
+          className={`flex items-center gap-1.5 px-1 ${
             isUser ? 'flex-row-reverse' : ''
           }`}
         >
           {timestamp && (
             <span
-              className="text-[11px] text-zinc-500 select-none font-mono"
+              className="text-[11px] text-zinc-500 font-mono font-medium"
               aria-hidden="true"
             >
               {timestamp}
@@ -224,12 +224,12 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
             <button
               type="button"
               onClick={handleCopy}
-              className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 opacity-70 group-hover:opacity-100 transition-all focus:opacity-100 cursor-pointer"
+              className="p-1 rounded-md border border-black bg-white shadow-[1.5px_1.5px_0px_0px_#000] hover:bg-[#ffde59] text-black transition-all cursor-pointer"
               title="Copy message"
               aria-label="Copy message"
             >
               {isCopied ? (
-                <Check className="w-3 h-3 text-emerald-400" />
+                <Check className="w-3 h-3 text-[#15803d]" />
               ) : (
                 <Copy className="w-3 h-3" />
               )}

@@ -21,14 +21,16 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
   };
 
   return (
-    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/90 shadow-lg overflow-hidden animate-slide-up">
+    <div className="mt-4 rounded-xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_#000] overflow-hidden animate-slide-up text-black">
       {/* Header */}
-      <div className="bg-zinc-900/80 px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
-          <Calendar className="w-3.5 h-3.5 text-orange-400" />
+      <div className="bg-[#ffde59] px-4 py-3 border-b-2 border-black flex items-center justify-between">
+        <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-black">
+          <Calendar className="w-4 h-4" />
           Available Times for {date}
         </h3>
-        <span className="text-[10px] text-zinc-400 font-mono">Cal.com</span>
+        <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-white border border-black shadow-[1px_1px_0px_0px_#000]">
+          Cal.com
+        </span>
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
@@ -36,10 +38,10 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
         <div role="group" aria-labelledby={timeLabelId}>
           <div
             id={timeLabelId}
-            className="text-xs font-medium text-zinc-400 mb-2.5 flex items-center gap-1.5"
+            className="text-xs font-bold text-black mb-2.5 flex items-center gap-1.5"
           >
-            <Clock className="w-3.5 h-3.5 text-zinc-500" />
-            Select a Time Slot
+            <Clock className="w-3.5 h-3.5" />
+            Pick a Time Slot
           </div>
           <div className="flex flex-wrap gap-2">
             {slots.map((slot) => (
@@ -49,10 +51,10 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
                 disabled={disabled}
                 aria-pressed={selectedSlot === slot}
                 onClick={() => setSelectedSlot(slot)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   selectedSlot === slot
-                    ? 'bg-orange-500 text-zinc-950 font-semibold shadow-md'
-                    : 'bg-zinc-900 text-zinc-200 border border-zinc-800 hover:border-orange-500/50 hover:bg-zinc-800/80'
+                    ? 'bg-black text-white shadow-[2px_2px_0px_0px_#ff5c00] translate-x-0.5 translate-y-0.5'
+                    : 'bg-white text-black shadow-[2px_2px_0px_0px_#000] hover:bg-[#ffde59] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none'
                 }`}
               >
                 {slot}
@@ -63,20 +65,20 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
 
         {/* Contact Form */}
         {selectedSlot && (
-          <div className="space-y-3 pt-3 border-t border-zinc-800 animate-slide-up">
+          <div className="space-y-3 pt-3 border-t-2 border-black animate-slide-up">
             <div>
-              <label htmlFor={nameId} className="block text-xs font-medium text-zinc-400 mb-1.5">
+              <label htmlFor={nameId} className="block text-xs font-bold text-black mb-1.5">
                 Your Full Name
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black pointer-events-none" />
                 <Input
                   id={nameId}
                   type="text"
                   required
                   placeholder="e.g. Alex Morgan"
                   aria-label="Your Full Name"
-                  className="bg-zinc-900/90 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-orange-500/50 pl-9 h-9 text-xs rounded-lg"
+                  className="bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] text-black placeholder:text-zinc-500 pl-9 h-9 text-xs rounded-lg focus-visible:ring-black"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={disabled}
@@ -84,18 +86,18 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
               </div>
             </div>
             <div>
-              <label htmlFor={emailId} className="block text-xs font-medium text-zinc-400 mb-1.5">
+              <label htmlFor={emailId} className="block text-xs font-bold text-black mb-1.5">
                 Work or Personal Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black pointer-events-none" />
                 <Input
                   id={emailId}
                   type="email"
                   required
                   placeholder="alex@company.com"
                   aria-label="Your Email Address"
-                  className="bg-zinc-900/90 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-orange-500/50 pl-9 h-9 text-xs rounded-lg"
+                  className="bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] text-black placeholder:text-zinc-500 pl-9 h-9 text-xs rounded-lg focus-visible:ring-black"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={disabled}
@@ -105,7 +107,7 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
             <Button
               type="submit"
               disabled={disabled}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold rounded-lg shadow-md transition-all h-9 text-xs mt-2"
+              className="w-full bg-[#ff5c00] hover:bg-[#ff7830] text-black font-extrabold rounded-lg border-2 border-black shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all h-10 text-xs mt-2 cursor-pointer"
             >
               Confirm Interview Booking
             </Button>
