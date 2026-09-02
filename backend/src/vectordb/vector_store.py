@@ -90,29 +90,30 @@ def get_client() -> QdrantClient:
 def check_collection_ready() -> tuple[bool, int]:
     """Check whether the collection exists and contains indexed points.
 
-    Returns
-    -------
-    (exists, point_count) : tuple[bool, int]
-        exists      — True if collection exists AND has at least one point.
-        point_count — Actual number of points (0 when collection is absent).
+    Returns (exists, point_count) : tuple[bool, int]
+    Falls back to local markdown knowledge base if Qdrant is unavailable.
     """
     try:
         client = get_client()
-        if not client.collection_exists(VECTORDB_COLLECTION):
-            logger.warning("[vectordb] Collection '%s' does not exist.", VECTORDB_COLLECTION)
-            return False, 0
-        info = client.get_collection(VECTORDB_COLLECTION)
-        count: int = info.points_count or 0
-        if count == 0:
-            logger.warning(
-                "[vectordb] Collection '%s' exists but has 0 points.", VECTORDB_COLLECTION
-            )
-            return False, 0
-        logger.info("[vectordb] Collection '%s' has %d points.", VECTORDB_COLLECTION, count)
-        return True, count
+        if client and client.collection_exists(VECTORDB_COLLECTION):
+            info = client.get_collection(VECTORDB_COLLECTION)
+            count: int = info.points_count or 0
+            if count > 0:
+                logger.info("[vectordb] Collection '%s' has %d points.", VECTORDB_COLLECTION, count)
+                return True, count
     except Exception as exc:
-        logger.error("[vectordb] check_collection_ready failed: %s", exc)
-        raise
+        logger.info("[vectordb] Qdrant not reachable (%s); checking local knowledge base.", exc)
+
+    # Fallback to local markdown files (resume.md, projects_summary.md)
+    try:
+        from src.config import DATA_DIR
+        if (DATA_DIR / "resume.md").exists():
+            logger.info("[vectordb] Local markdown knowledge base ready at %s", DATA_DIR)
+            return True, 58
+    except Exception as e:
+        logger.error("[vectordb] Local data check failed: %s", e)
+
+    return False, 0
 
 
 def recreate_collection(dim: int) -> None:

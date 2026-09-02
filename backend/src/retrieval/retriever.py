@@ -226,6 +226,78 @@ def retrieve_context_filtered(
     return _retrieve_context_impl(query, top_k, force_doc_type="code", repo_name=repo_name)
 
 
+_local_sections_cache: list[tuple[str, str]] | None = None
+
+def _get_local_sections() -> list[tuple[str, str]]:
+    global _local_sections_cache
+    if _local_sections_cache is not None:
+        return _local_sections_cache
+    from src.config import DATA_DIR
+    sections = []
+    files_to_load = ["resume.md", "project_index.md", "projects_summary.md"]
+    for fname in files_to_load:
+        fpath = DATA_DIR / fname
+        if not fpath.exists():
+            continue
+        try:
+            text = fpath.read_text(encoding="utf-8")
+            parts = re.split(r'\n(?=## )', text)
+            for p in parts:
+                p = p.strip()
+                if len(p) > 20:
+                    sections.append((fname, p))
+        except Exception as e:
+            logger.error("[retriever] Error reading %s: %s", fpath, e)
+    _local_sections_cache = sections
+    return _local_sections_cache
+
+
+def retrieve_from_local_data(query: str, repo_name: str | None = None, top_k: int = 6) -> list[str]:
+    """Retrieve grounded markdown context directly from local files as a zero-dependency fallback."""
+    sections = _get_local_sections()
+    if not sections:
+        return []
+
+    q_lower = query.lower()
+    q_words = set(re.findall(r'\w+', q_lower))
+    stopwords = {"what", "is", "are", "his", "the", "a", "an", "and", "or", "to", "for", "in", "of", "about", "me", "tell", "show", "give"}
+    meaningful_q_words = q_words - stopwords or q_words
+
+    scored = []
+    for fname, sec in sections:
+        sec_lower = sec.lower()
+        repo_boost = 10 if (repo_name and repo_name.lower() in sec_lower) else 0
+
+        skill_boost = 0
+        if any(w in q_lower for w in ["skill", "stack", "tech", "languages", "tools", "python", "ai"]):
+            if "technical skills" in sec_lower:
+                skill_boost = 8
+            elif fname == "resume.md":
+                skill_boost = 3
+
+        project_boost = 0
+        if any(w in q_lower for w in ["project", "repo", "built", "work", "github"]):
+            if fname in ["project_index.md", "projects_summary.md"]:
+                project_boost = 4
+
+        hire_boost = 0
+        if any(w in q_lower for w in ["hire", "strength", "background", "education", "degree"]):
+            if fname == "resume.md":
+                hire_boost = 5
+
+        sec_words = set(re.findall(r'\w+', sec_lower))
+        overlap = len(meaningful_q_words & sec_words)
+        total_score = overlap + repo_boost + skill_boost + project_boost + hire_boost
+        if total_score > 0:
+            scored.append((total_score, sec))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    results = [s[1] for s in scored[:top_k]]
+    if not results and sections:
+        return [sec for fname, sec in sections if fname in ["resume.md", "project_index.md"]][:top_k]
+    return results
+
+
 def _retrieve_context_impl(
     query: str,
     top_k: int | None = None,
@@ -236,6 +308,8 @@ def _retrieve_context_impl(
     cached = _get_cached(query, effective_top_k, force_doc_type, repo_name)
     if cached is not None:
         return cached
+
+    detected_repo = repo_name or _detect_repo_name(query)
 
     try:
         # Step 1 — HyDE expansion for vague queries
@@ -248,22 +322,21 @@ def _retrieve_context_impl(
             search_query = query
 
         # Step 2 — Embed (expanded) query (Dense + Sparse) sequentially
-        # Sequential inference is often faster for fastembed/ONNX because ONNX is already
-        # multi-threaded in C++; Python-level threading just causes CPU thrashing and overhead.
         try:
             dense_vector = embed_query(search_query)
             sparse_vector = embed_query_sparse(search_query)
         except Exception as e:
-            logger.error("[retriever] Embedding failed: %s\n%s", e, traceback.format_exc())
+            logger.warning("[retriever] Embedding unavailable (%s); using local markdown retrieval.", e)
+            local_hits = retrieve_from_local_data(query, repo_name=detected_repo, top_k=effective_top_k)
+            if local_hits:
+                _set_cache(query, effective_top_k, local_hits, force_doc_type, repo_name)
+                return local_hits
             return [NO_CONTEXT_SENTINEL]
 
         # Step 3 — Hybrid search
         try:
-            # Use forced doc_type if provided, otherwise detect intent
             doc_filter = force_doc_type or _detect_intent(query)
-            # Auto-detect repo name from query (e.g. "show me SastaNotebookLM code")
-            detected_repo = repo_name or _detect_repo_name(query)
-            fetch_k = effective_top_k * 2  # Fetch 2x for reranker
+            fetch_k = effective_top_k * 2
 
             if doc_filter or detected_repo:
                 logger.debug(
@@ -280,29 +353,39 @@ def _retrieve_context_impl(
             else:
                 hits = search(dense_vector, sparse_vector, top_k=fetch_k)
         except Exception as e:
-            logger.error("[retriever] Vector search failed: %s\n%s", e, traceback.format_exc())
+            logger.warning("[retriever] Vector search failed (%s); using local markdown retrieval.", e)
+            local_hits = retrieve_from_local_data(query, repo_name=detected_repo, top_k=effective_top_k)
+            if local_hits:
+                _set_cache(query, effective_top_k, local_hits, force_doc_type, repo_name)
+                return local_hits
             return [NO_CONTEXT_SENTINEL]
 
         # Fallback with raw query if no hits
         if not hits:
             logger.info("[retriever] 0 hits for query '%.50s...'; retrying with raw query and no filters", query)
             try:
-                # Skip re-embedding if HyDE was not used — search_query == query for non-vague queries
                 if search_query != query:
                     fallback_dense = embed_query(query)
                     fallback_sparse = embed_query_sparse(query)
                 else:
                     fallback_dense = dense_vector
                     fallback_sparse = sparse_vector
-                # Drop ALL filters (intent + repo) to broaden the search
                 hits = search(fallback_dense, fallback_sparse, top_k=fetch_k)
             except Exception as e:
-                logger.error("[retriever] Fallback search failed: %s\n%s", e, traceback.format_exc())
+                logger.warning("[retriever] Fallback search failed (%s); using local markdown retrieval.", e)
+                local_hits = retrieve_from_local_data(query, repo_name=detected_repo, top_k=effective_top_k)
+                if local_hits:
+                    _set_cache(query, effective_top_k, local_hits, force_doc_type, repo_name)
+                    return local_hits
                 return [NO_CONTEXT_SENTINEL]
 
-        # Sentinel when nothing at all was found
+        # Sentinel when nothing at all was found in vector search -> fallback to local data
         if not hits:
-            logger.info("[retriever] No chunks found for query: %.80s", query)
+            logger.info("[retriever] No vector chunks found; using local markdown retrieval.")
+            local_hits = retrieve_from_local_data(query, repo_name=detected_repo, top_k=effective_top_k)
+            if local_hits:
+                _set_cache(query, effective_top_k, local_hits, force_doc_type, repo_name)
+                return local_hits
             return [NO_CONTEXT_SENTINEL]
 
         # Step 3.5 — Filter out commit_history noise (11.4% of corpus, pollutes every search)

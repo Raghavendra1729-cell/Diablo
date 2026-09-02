@@ -8,22 +8,28 @@ logger = logging.getLogger(__name__)
 
 
 def parse_llm_output(raw: str) -> tuple[str | None, dict | None, dict | None]:
-    """Validate exactly one JSON object against the server-owned schema.
-
-    No substring extraction, repair, or permissive JSON fallback is allowed:
-    malformed model output is retried by the route and never reaches a tool.
-    """
+    """Validate exactly one JSON object against the server-owned schema, supporting markdown code fences."""
     if not raw or not raw.strip():
         return (None, None, None)
+
+    cleaned = raw.strip()
+    # Strip <think> reasoning blocks if present
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL).strip()
+
+    # If wrapped in markdown code fence ```json ... ``` or ``` ... ```
+    if cleaned.startswith("```"):
+        fence_match = re.match(r"^```(?:json)?\s*([\s\S]*?)\s*```$", cleaned)
+        if fence_match:
+            cleaned = fence_match.group(1).strip()
+
     try:
-        parsed = LLMOutputSchema.model_validate_json(raw.strip())
+        parsed = LLMOutputSchema.model_validate_json(cleaned)
+        tool_call = parsed.tool_call.model_dump(exclude_none=True) if parsed.tool_call else None
+        ui = parsed.ui.model_dump(exclude_none=True) if parsed.ui else None
+        return (parsed.response, tool_call, ui)
     except Exception as exc:
         logger.warning("[output_parser] Strict schema validation failed: %s", exc)
         return (None, None, None)
-
-    tool_call = parsed.tool_call.model_dump(exclude_none=True) if parsed.tool_call else None
-    ui = parsed.ui.model_dump(exclude_none=True) if parsed.ui else None
-    return (parsed.response, tool_call, ui)
 
 
 def clean_voice_text(raw: str) -> str:

@@ -378,10 +378,6 @@ async def chat(request: ChatRequest):
 
             # Read-only tools: execute and loop back for synthesis
             if tool_name not in _STATE_CHANGING_TOOLS:
-                if search_turns >= max_search_turns:
-                    logger.warning("[routes] Max search turns exceeded.")
-                    return ChatResponse(response="I couldn't process that after multiple attempts.")
-
                 search_turns += 1
                 try:
                     result = await execute_tool(tool_call)
@@ -393,12 +389,24 @@ async def chat(request: ChatRequest):
                         }
                     messages.append({"role": "assistant", "content": response_text})
                     tool_result_content = _format_tool_result(tool_name, result, tool_call, request.channel)
-                    messages.append({"role": "user", "content": tool_result_content})
+                    if search_turns >= max_search_turns:
+                        logger.info("[routes] Max search turns reached (%d). Forcing final synthesis.", search_turns)
+                        messages.append({
+                            "role": "user",
+                            "content": f"{tool_result_content}\n\n[Instruction: You have now gathered all required context. Synthesize and provide your comprehensive final answer now. Do NOT call any further tools.]"
+                        })
+                    else:
+                        messages.append({"role": "user", "content": tool_result_content})
                     logger.info("[routes] Multi-turn %s step %d completed.", tool_name, search_turns)
                     continue
                 except Exception as e:
-                    logger.error("[routes] Multi-turn tool failed: %s", e)
-                    return ChatResponse(response="I encountered an error gathering information.")
+                    logger.warning("[routes] Multi-turn tool failed: %s; forcing direct synthesis.", e)
+                    messages.append({"role": "assistant", "content": response_text})
+                    messages.append({
+                        "role": "user",
+                        "content": f"[Tool note: {e}. Please answer the user's question directly using your available knowledge.]"
+                    })
+                    continue
 
             # State-changing tools: execute and break
             if tool_name == "book_meeting" and not _is_explicit_booking_confirmation(user_message):

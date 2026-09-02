@@ -18,7 +18,7 @@ from src.config import (
 logger = logging.getLogger(__name__)
 
 LLM_TIMEOUT_VOICE = 10   # aggressive; allows 2 tool turns inside 30s Vapi window
-LLM_TIMEOUT_WEB   = 25  # web has no strict deadline
+LLM_TIMEOUT_WEB   = 60   # allows complete multi-paragraph output without cutting off
 
 _RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -68,7 +68,8 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
                 "temperature": temperature,
                 "top_p": LLM_TOP_P,
             }
-            create_kwargs["response_format"] = _RESPONSE_FORMAT
+            if "minimax" not in LLM_MODEL.lower():
+                create_kwargs["response_format"] = _RESPONSE_FORMAT
 
             response = await run_in_threadpool(
                 lambda: client.chat.completions.create(**create_kwargs)

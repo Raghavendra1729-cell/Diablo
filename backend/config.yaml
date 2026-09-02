@@ -12,19 +12,19 @@ vectordb:
   score_threshold: 0.45              
 
 retrieval:
-  top_k: 15                       
+  top_k: 4                       
 
 llm:
   model: "MiniMaxAI/MiniMax-M3"
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
-  max_tokens: 4096        
+  max_tokens: 1500        
   max_tokens_voice: 400    
   temperature: 0.3
   temperature_voice: 0.5
   top_p: 0.9
-  max_search_turns: 4      # max LLM tool-call loops per request
-  history_limit: 14        # max history messages sent per request (prevents growing context cost)
+  max_search_turns: 1      # 1 turn max for fast web response
+  history_limit: 8         # lean history to avoid high serverless latency
 
 calendar:
   provider: "calcom"                 
