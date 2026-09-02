@@ -216,7 +216,11 @@ if os.path.isdir(frontend_dist):
     async def serve_react(full_path: str):
         if full_path.startswith("v1/") or full_path == "health":
             return {"error": "Not Found"}
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        response = FileResponse(os.path.join(frontend_dist, "index.html"))
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
 
 if __name__ == "__main__":
