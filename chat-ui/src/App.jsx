@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Calendar, ChevronDown, Flame, Plus, Send, User } from 'lucide-react';
+import { useEffect } from 'react';
+import { ChevronDown, Flame, Plus, Send } from 'lucide-react';
 import { useChat } from './models/useChat';
 import { useServiceStatus } from './models/useServiceStatus';
 import { EdgeGlows } from './components/chat/EdgeGlows';
@@ -7,7 +7,6 @@ import { StatusDot } from './components/chat/StatusDot';
 import { EmptyState } from './components/chat/EmptyState';
 import { MessageBubble } from './components/chat/MessageBubble';
 import { TypingIndicator } from './components/chat/TypingIndicator';
-import { ProfileDrawer } from './components/chat/ProfileDrawer';
 import { Button } from '@/components/ui/button';
 
 function GithubIcon(props) {
@@ -28,7 +27,6 @@ const SUGGESTIONS = [
 
 export default function App() {
   const serviceStatus = useServiceStatus();
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const {
     messages,
     input,
@@ -65,25 +63,18 @@ export default function App() {
     <div className="h-[100dvh] flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden selection:bg-orange-500/25 selection:text-white">
       <EdgeGlows />
 
-      {/* ─── Candidate Profile Sheet ─── */}
-      <ProfileDrawer 
-        isOpen={isProfileOpen} 
-        onClose={() => setIsProfileOpen(false)} 
-        onSchedule={() => sendMessage('Book an interview')}
-      />
-
       {/* ─── Header ─── */}
-      <header className="shrink-0 px-4 sm:px-6 py-2.5 header-glass z-20 border-b border-white/[0.07]">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <header className="shrink-0 px-4 sm:px-6 py-3 header-glass z-20 border-b border-white/[0.07]">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400 shadow-sm">
-              <Flame className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400 shadow-sm">
+              <Flame className="w-4.5 h-4.5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-semibold tracking-tight text-zinc-100">Diablo</h1>
                 <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-zinc-800/80 text-zinc-400 border border-zinc-700/40">
-                  AI Assistant
+                  Personal AI
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -95,30 +86,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Quick Profile Drawer Trigger */}
-            <button
-              type="button"
-              onClick={() => setIsProfileOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
-              title="View Candidate Quick Profile"
-            >
-              <User className="w-3.5 h-3.5 text-orange-400" />
-              <span className="hidden sm:inline">Profile</span>
-            </button>
-
-            {/* Quick Book Call Trigger */}
-            <button
-              type="button"
-              onClick={() => sendMessage('Book an interview')}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
-              title="Schedule an Interview with Linga"
-            >
-              <Calendar className="w-3.5 h-3.5 text-orange-400" />
-              <span className="hidden sm:inline">Book Call</span>
-            </button>
-
-            {/* New Chat Button */}
+          <div className="flex items-center gap-2">
             {hasMessages && (
               <button
                 type="button"
@@ -131,7 +99,6 @@ export default function App() {
               </button>
             )}
 
-            {/* GitHub Repo */}
             <a
               href="https://github.com/Raghavendra1729-cell/Diablo"
               target="_blank"
@@ -140,7 +107,7 @@ export default function App() {
               aria-label="View Diablo on GitHub"
             >
               <GithubIcon />
-              <span className="hidden md:inline">GitHub</span>
+              <span className="hidden sm:inline">GitHub</span>
             </a>
           </div>
         </div>
@@ -150,11 +117,7 @@ export default function App() {
       <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10">
         <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-6 min-h-full flex flex-col relative">
           {!hasMessages && !loading && (
-            <EmptyState 
-              suggestions={SUGGESTIONS} 
-              onSelect={sendMessage}
-              onOpenProfile={() => setIsProfileOpen(true)}
-            />
+            <EmptyState suggestions={SUGGESTIONS} onSelect={sendMessage} />
           )}
 
           <div

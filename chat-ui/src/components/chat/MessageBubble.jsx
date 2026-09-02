@@ -7,36 +7,6 @@ import { CalendarWidget } from '../widgets/CalendarWidget';
 import { BookingReceipt } from '../widgets/BookingReceipt';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
-/* ─── Dynamic follow-up questions for recruiters ─── */
-function getFollowUpSuggestions(content = '') {
-  const lower = content.toLowerCase();
-  if (lower.includes('project') || lower.includes('github') || lower.includes('repo')) {
-    return [
-      'Tell me about SastaNotebookLM',
-      'How does Diablo handle voice calls?',
-      'Book an interview with Linga',
-    ];
-  }
-  if (lower.includes('hire') || lower.includes('strength') || lower.includes('background') || lower.includes('experience')) {
-    return [
-      'Explore his top projects',
-      'What is his LeetCode record?',
-      'Schedule an interview',
-    ];
-  }
-  if (lower.includes('schedule') || lower.includes('interview') || lower.includes('calendar') || lower.includes('slot')) {
-    return [
-      'What roles is Linga looking for?',
-      'Tell me about his AI stack',
-    ];
-  }
-  return [
-    'Why hire Linga?',
-    'Explore his key projects',
-    'Book an interview',
-  ];
-}
-
 /* ─── Custom markdown renderers ─── */
 function CodeBlock({ children, className }) {
   const [copied, setCopied] = useState(false);
@@ -52,7 +22,7 @@ function CodeBlock({ children, className }) {
   }, [children]);
 
   return (
-    <div className="group/code relative my-4 rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-md">
+    <div className="group/code relative my-3 rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-md">
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/90 border-b border-zinc-800">
         <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
@@ -127,10 +97,6 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
     ? new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(msg.createdAt)
     : '';
 
-  const followUps = !isUser && !isDisabled && !msg.isError && !hasRichWidget
-    ? getFollowUpSuggestions(contentStr)
-    : [];
-
   const handleCopy = useCallback(async () => {
     if (copyTimeout.current) clearTimeout(copyTimeout.current);
     try {
@@ -176,8 +142,8 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
       {/* Content */}
       <div
         className={`${
-          hasRichWidget ? 'max-w-[calc(100%_-_2.5rem)] sm:max-w-[85%]' : 'max-w-[88%] sm:max-w-[78%]'
-        } flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1.5 min-w-0`}
+          hasRichWidget ? 'max-w-[calc(100%_-_2.5rem)] sm:max-w-[85%]' : 'max-w-[88%] sm:max-w-[80%]'
+        } flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1 min-w-0`}
       >
         {/* Bubble */}
         <div
@@ -240,26 +206,9 @@ export const MessageBubble = memo(function MessageBubble({ msg, onSendMessage, i
           )}
         </div>
 
-        {/* Dynamic Follow-up Questions */}
-        {followUps.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1 animate-fade-in" aria-label="Suggested follow-ups">
-            {followUps.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => onSendMessage(q)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:text-white hover:border-orange-500/40 hover:bg-zinc-800 transition-all cursor-pointer shadow-xs"
-              >
-                <span>{q}</span>
-                <ArrowUpRight className="w-3 h-3 text-zinc-500" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Meta row: timestamp + copy */}
         <div
-          className={`flex items-center gap-1.5 px-1 ${
+          className={`flex items-center gap-1 px-1 ${
             isUser ? 'flex-row-reverse' : ''
           }`}
         >
