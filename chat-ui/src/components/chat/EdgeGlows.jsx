@@ -1,5 +1,5 @@
 export function EdgeGlows() {
   return (
-    <div className="bg-animated" aria-hidden="true" />
+    <div className="bg-ambient" aria-hidden="true" />
   );
 }

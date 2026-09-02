@@ -6,21 +6,19 @@ export function TypingIndicator() {
     <div
       className="flex items-start gap-3 animate-message-in"
       role="status"
-      aria-label="Assistant is typing"
+      aria-label="Diablo is thinking"
     >
-      <Avatar className="w-8 h-8 shrink-0 bg-gradient-to-br from-accent to-accent2 shadow-md avatar-pulse">
+      <Avatar className="w-7 h-7 shrink-0 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400">
         <AvatarFallback className="bg-transparent">
-          <Bot className="w-[15px] h-[15px] text-white" />
+          <Bot className="w-4 h-4" />
         </AvatarFallback>
       </Avatar>
-      <div className="glass rounded-[20px] rounded-tl-sm px-5 py-3 shadow-sm flex items-center gap-3">
-        <span className="text-[11px] font-bold text-secondary tracking-widest uppercase">
-          Thinking
-        </span>
-        <div className="flex items-center gap-1.5 h-3">
-          <div className="typing-dot" style={{ animationDelay: '0ms' }} />
-          <div className="typing-dot" style={{ animationDelay: '150ms' }} />
-          <div className="typing-dot" style={{ animationDelay: '300ms' }} />
+      <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-2">
+        <span className="text-xs font-medium text-zinc-400">Thinking</span>
+        <div className="flex items-center gap-1 h-3 ml-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" />
         </div>
       </div>
     </div>

@@ -131,6 +131,11 @@ export function useChat() {
     }
   }, []);
 
+  const resetChat = useCallback(() => {
+    setMessages([]);
+    setInput('');
+  }, []);
+
   const handleSubmit = (e) => { e.preventDefault(); sendMessage(input); };
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
@@ -147,6 +152,7 @@ export function useChat() {
     messagesEndRef,
     scrollToBottom,
     sendMessage,
+    resetChat,
     handleSubmit,
     handleKeyDown,
   };

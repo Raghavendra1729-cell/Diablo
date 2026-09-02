@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Bot, ChevronDown, Command, Send, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Flame, Plus, Send } from 'lucide-react';
 import { useChat } from './models/useChat';
 import { useServiceStatus } from './models/useServiceStatus';
 import { EdgeGlows } from './components/chat/EdgeGlows';
@@ -7,21 +7,29 @@ import { StatusDot } from './components/chat/StatusDot';
 import { EmptyState } from './components/chat/EmptyState';
 import { MessageBubble } from './components/chat/MessageBubble';
 import { TypingIndicator } from './components/chat/TypingIndicator';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
+function GithubIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
+
 const SUGGESTIONS = [
-  { title: 'Why hire Linga?', description: 'Evidence-backed candidate brief', icon: 'briefcase' },
-  { title: 'Technical strengths', description: 'Skills, systems, and engineering depth', icon: 'code' },
-  { title: 'Book an interview', description: 'Check live availability', icon: 'calendar' },
-  { title: 'Explore his projects', description: 'Architecture and implementation details', icon: 'projects' },
+  { title: 'Why hire Linga?', description: 'Evidence-backed candidate brief and engineering impact', icon: 'briefcase' },
+  { title: 'Technical strengths', description: 'Agentic workflows, custom RAG, and backend architecture', icon: 'code' },
+  { title: 'Book an interview', description: 'Check live availability and schedule directly on Cal.com', icon: 'calendar' },
+  { title: 'Explore key projects', description: 'Inspect 24+ open-source repos, models, and systems', icon: 'projects' },
 ];
 
 const STATUS_COPY = {
-  checking: 'Checking services',
-  online: 'All systems ready',
+  checking: 'Checking services...',
+  online: 'All systems online',
   degraded: 'Portfolio search limited',
-  offline: 'Service unavailable',
+  offline: 'Service offline',
 };
 
 export default function App() {
@@ -37,6 +45,7 @@ export default function App() {
     messagesEndRef,
     scrollToBottom,
     sendMessage,
+    resetChat,
     handleSubmit,
     handleKeyDown,
   } = useChat();
@@ -57,46 +66,85 @@ export default function App() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="app-shell h-[100dvh] flex flex-col text-primary overflow-hidden selection:bg-accent/20 selection:text-primary">
+    <div className="h-[100dvh] flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden selection:bg-orange-500/25 selection:text-white">
       <EdgeGlows />
 
       {/* ─── Header ─── */}
-      <header className="shrink-0 px-4 sm:px-6 py-3.5 header-glass z-20">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="relative">
-              <Avatar className="w-10 h-10 shadow-md avatar-pulse bg-gradient-to-br from-accent to-accent2">
-                <AvatarFallback className="bg-transparent"><Bot className="w-5 h-5 text-white" /></AvatarFallback>
-              </Avatar>
-              <span className="absolute -bottom-[2px] -right-[2px]">
-                  <StatusDot status={serviceStatus} />
-              </span>
+      <header className="shrink-0 px-4 sm:px-6 py-3 header-glass z-20 border-b border-white/[0.07]">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-orange-400 shadow-sm">
+              <Flame className="w-5 h-5" />
             </div>
-            <div className="leading-tight">
-              <h1 className="text-[15px] font-bold tracking-tight text-primary flex items-center gap-2">Diablo <span className="brand-version">M3</span></h1>
-                <p className="text-[11px] text-secondary font-medium mt-0.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-semibold tracking-tight text-zinc-100">Diablo</h1>
+                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-400 border border-zinc-700/50">
+                  Concierge
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <StatusDot status={serviceStatus} />
+                <p className="text-[11px] text-zinc-400 font-medium">
                   {STATUS_COPY[serviceStatus]}
                 </p>
+              </div>
             </div>
           </div>
-          <div className="identity-pill text-[10px] sm:text-[11px] uppercase tracking-[0.16em] font-semibold flex items-center px-3 py-1.5 rounded-full">
-            <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-accent" />
-            <span className="hidden sm:inline">Evidence-backed assistant</span>
-            <span className="sm:hidden">Verified</span>
+
+          <div className="flex items-center gap-2">
+            {hasMessages && (
+              <button
+                type="button"
+                onClick={resetChat}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
+                title="Start a new chat session"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">New Chat</span>
+              </button>
+            )}
+
+            <a
+              href="https://github.com/Raghavendra1729-cell/Diablo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors"
+              aria-label="View Diablo on GitHub"
+            >
+              <GithubIcon />
+              <span className="hidden sm:inline">GitHub</span>
+            </a>
           </div>
         </div>
       </header>
 
-      {/* ─── Chat ─── */}
+      {/* ─── Main Chat Canvas ─── */}
       <main ref={chatRef} className="flex-1 overflow-y-auto scroll-smooth z-10">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-7 min-h-full flex flex-col relative">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-6 min-h-full flex flex-col relative">
           {!hasMessages && !loading && (
             <EmptyState suggestions={SUGGESTIONS} onSelect={sendMessage} />
           )}
 
-          <div role="log" aria-live="polite" aria-atomic="false" className={`w-full ${hasMessages ? 'space-y-6 pb-2' : (loading ? 'flex-1 flex items-center justify-center' : 'hidden')}`}>
+          <div
+            role="log"
+            aria-live="polite"
+            aria-atomic="false"
+            className={`w-full ${
+              hasMessages
+                ? 'space-y-5 pb-4'
+                : loading
+                  ? 'flex-1 flex items-center justify-center'
+                  : 'hidden'
+            }`}
+          >
             {messages.map((msg, idx) => (
-              <MessageBubble key={`${idx}-${msg.role}`} msg={msg} onSendMessage={sendMessage} isDisabled={idx !== messages.length - 1 || loading} />
+              <MessageBubble
+                key={`${idx}-${msg.role}`}
+                msg={msg}
+                onSendMessage={sendMessage}
+                isDisabled={idx !== messages.length - 1 || loading}
+              />
             ))}
             {loading && <TypingIndicator />}
           </div>
@@ -105,31 +153,31 @@ export default function App() {
         </div>
       </main>
 
-      {/* ─── Scroll FAB ─── */}
+      {/* ─── Scroll to Bottom Floating Action Button ─── */}
       {showScrollBtn && (
         <Button
           variant="secondary"
           size="icon"
           onClick={() => scrollToBottom()}
-          className="fab fixed bottom-28 right-6 sm:right-8 w-11 h-11 flex items-center justify-center z-20 rounded-full"
+          className="fixed bottom-24 right-6 sm:right-10 w-9 h-9 flex items-center justify-center z-20 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 hover:bg-zinc-700 hover:text-white shadow-lg transition-all"
           aria-label="Scroll to bottom"
         >
-          <ChevronDown className="w-5 h-5" />
+          <ChevronDown className="w-4 h-4" />
         </Button>
       )}
 
-      {/* ─── Input ─── */}
-      <footer className="composer-footer shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-3 z-20">
-        <div className="max-w-6xl mx-auto">
+      {/* ─── Floating Composer Footer ─── */}
+      <footer className="shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-2 z-20">
+        <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit}>
-            <div className="flex items-end gap-3 input-wrap px-4 sm:px-5 py-3 transition-all">
+            <div className="composer-wrap flex items-end gap-2.5 px-4 py-2.5 transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Diablo about Linga's work or availability..."
-                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-[15px] text-primary placeholder-secondary/50 scrollbar-none leading-relaxed font-medium min-w-0"
+                placeholder="Ask about Linga's projects, systems, or schedule an interview..."
+                className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 focus:outline-none resize-none py-1.5 text-sm sm:text-[14.5px] text-zinc-100 placeholder:text-zinc-500 scrollbar-none leading-relaxed min-w-0"
                 rows={1}
                 disabled={loading}
                 aria-label="Message input"
@@ -137,14 +185,16 @@ export default function App() {
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="btn-send disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-accent/50 w-11 h-11 flex items-center justify-center"
+                className="btn-send disabled:opacity-30 disabled:cursor-not-allowed mb-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-orange-500/50 w-8 h-8 flex items-center justify-center cursor-pointer"
                 aria-label="Send Message"
               >
-                <Send className="w-5 h-5 translate-x-px translate-y-px drop-shadow-md" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             </div>
-            <p className="composer-note text-center mt-3 text-[10px] uppercase tracking-widest font-semibold select-none flex items-center justify-center gap-2">
-              <Command className="w-3 h-3" /> Enter to send <span aria-hidden="true">·</span> Shift + Enter for a new line
+            <p className="text-center mt-2.5 text-[11px] text-zinc-500 select-none flex items-center justify-center gap-1.5">
+              <span>Enter to send</span>
+              <span className="text-zinc-700">·</span>
+              <span>Shift + Enter for new line</span>
             </p>
           </form>
         </div>

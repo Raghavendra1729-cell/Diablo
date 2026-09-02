@@ -1,60 +1,58 @@
-import { ArrowDownRight, CalendarCheck2, GitFork, Radio, Trophy } from 'lucide-react';
+import { CalendarCheck2, Flame, GitFork, Trophy } from 'lucide-react';
 import { SuggestionChip } from './SuggestionChip';
-import heroGraphic from '@/assets/hero.png';
 
 export function EmptyState({ suggestions, onSelect }) {
   return (
-    <div className="empty-state intelligence-stage flex-1 relative z-10">
-      <section className="briefing-hero" aria-labelledby="diablo-heading">
-        <div className="hero-topline">
-          <span className="live-signal"><Radio className="w-3.5 h-3.5" /> Live candidate intelligence</span>
-          <span className="briefing-index">BRIEF / 01</span>
-        </div>
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 max-w-3xl mx-auto w-full z-10 animate-fade-in text-center">
+      {/* Brand Badge */}
+      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/80 border border-zinc-800/80 text-xs font-medium text-zinc-400 mb-6 shadow-sm">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        <span>Diablo Concierge</span>
+        <span className="text-zinc-600">·</span>
+        <span className="text-zinc-400">Live Portfolio & Interview Agent</span>
+      </div>
 
-        <div className="hero-visual" aria-hidden="true">
-          <div className="hero-mark relative">
-            <div className="hero-orbit" />
-            <img src={heroGraphic} alt="" className="hero-image object-contain relative z-10" />
-          </div>
-          <div className="scan-line" />
-        </div>
+      {/* Hero Icon */}
+      <div className="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-orange-400 shadow-xl mb-4 shadow-orange-500/5">
+        <Flame className="w-7 h-7" />
+      </div>
 
-        <p className="hero-eyebrow">Meet Diablo</p>
-        <h2 id="diablo-heading" className="hero-title">
-          Evidence over <span>claims.</span>
-        </h2>
-        <p className="hero-copy">
-          Ask one focused assistant about Linga's engineering work, inspect project
-          decisions, or move directly from evaluation to an interview.
-        </p>
+      {/* Headline */}
+      <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 max-w-lg mb-3">
+        Explore Linga's engineering depth and availability.
+      </h2>
 
-        <div className="proof-row" aria-label="Candidate highlights">
-          <div><GitFork aria-hidden="true" /><strong>24+</strong><span>repositories</span></div>
-          <div><Trophy aria-hidden="true" /><strong>900+</strong><span>problems solved</span></div>
-          <div><CalendarCheck2 aria-hidden="true" /><strong>Live</strong><span>scheduling</span></div>
-        </div>
-      </section>
+      {/* Subtitle */}
+      <p className="text-sm sm:text-[15px] text-zinc-400 max-w-xl leading-relaxed mb-8">
+        Ask Diablo about architecture decisions across 24+ GitHub repositories, inspect production AI agent implementations, or schedule an interview directly.
+      </p>
 
-      <aside className="briefing-menu" aria-label="Start a candidate briefing">
-        <div className="menu-heading">
-          <div>
-            <span className="menu-kicker">Choose a line of inquiry</span>
-            <h3>Start a briefing</h3>
-          </div>
-          <ArrowDownRight aria-hidden="true" />
+      {/* Suggestion Cards 2x2 Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl mb-8">
+        {suggestions.map((suggestion) => (
+          <SuggestionChip
+            key={suggestion.title}
+            suggestion={suggestion}
+            onClick={() => onSelect(suggestion.title)}
+          />
+        ))}
+      </div>
+
+      {/* Proof row badges */}
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs text-zinc-500">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900/40 border border-zinc-800/50">
+          <GitFork className="w-3.5 h-3.5 text-zinc-400" />
+          <span className="font-semibold text-zinc-300">24+</span> Repositories
         </div>
-        <div className="inquiry-list">
-          {suggestions.map((suggestion, index) => (
-            <SuggestionChip
-              key={suggestion.title}
-              index={index + 1}
-              suggestion={suggestion}
-              onClick={() => onSelect(suggestion.title)}
-            />
-          ))}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900/40 border border-zinc-800/50">
+          <Trophy className="w-3.5 h-3.5 text-zinc-400" />
+          <span className="font-semibold text-zinc-300">900+</span> Problems Solved
         </div>
-        <p className="menu-footnote">Answers are generated from portfolio evidence. Scheduling uses live availability.</p>
-      </aside>
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900/40 border border-zinc-800/50">
+          <CalendarCheck2 className="w-3.5 h-3.5 text-zinc-400" />
+          <span className="font-semibold text-zinc-300">Live</span> Cal.com Sync
+        </div>
+      </div>
     </div>
   );
 }

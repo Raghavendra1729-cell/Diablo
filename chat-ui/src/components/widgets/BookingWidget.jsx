@@ -21,37 +21,38 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
   };
 
   return (
-    <div className="mt-4 glass rounded-2xl shadow-sm overflow-hidden animate-slide-up">
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/90 shadow-lg overflow-hidden animate-slide-up">
       {/* Header */}
-      <div className="bg-gradient-to-r from-accent/8 to-accent/4 px-5 py-3.5 border-b border-border/50">
-        <h3 className="text-[13px] font-bold text-accent uppercase tracking-wider flex items-center gap-2">
-          <Calendar className="w-4 h-4" />
-          Schedule Meeting for {date}
+      <div className="bg-zinc-900/80 px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+          <Calendar className="w-3.5 h-3.5 text-orange-400" />
+          Available Times for {date}
         </h3>
+        <span className="text-[10px] text-zinc-400 font-mono">Cal.com</span>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-5 space-y-4">
+      <form onSubmit={handleSubmit} className="p-4 space-y-4">
         {/* Slot Picker */}
         <div role="group" aria-labelledby={timeLabelId}>
           <div
             id={timeLabelId}
-            className="text-xs font-semibold text-secondary mb-2 flex items-center gap-1.5"
+            className="text-xs font-medium text-zinc-400 mb-2.5 flex items-center gap-1.5"
           >
-            <Clock className="w-3 h-3" />
-            Select a Time
+            <Clock className="w-3.5 h-3.5 text-zinc-500" />
+            Select a Time Slot
           </div>
           <div className="flex flex-wrap gap-2">
             {slots.map((slot) => (
               <button
                 key={slot}
-                  type="button"
-                  disabled={disabled}
+                type="button"
+                disabled={disabled}
                 aria-pressed={selectedSlot === slot}
                 onClick={() => setSelectedSlot(slot)}
-                className={`px-3.5 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${
                   selectedSlot === slot
-                    ? 'bg-accent text-white shadow-md shadow-accent/20'
-                    : 'bg-white text-primary border border-border hover:border-accent hover:bg-accent/5'
+                    ? 'bg-orange-500 text-zinc-950 font-semibold shadow-md'
+                    : 'bg-zinc-900 text-zinc-200 border border-zinc-800 hover:border-orange-500/50 hover:bg-zinc-800/80'
                 }`}
               >
                 {slot}
@@ -62,47 +63,51 @@ export function BookingWidget({ date, slots, onConfirm, disabled }) {
 
         {/* Contact Form */}
         {selectedSlot && (
-          <div className="space-y-3 pt-3 border-t border-border animate-slide-up">
+          <div className="space-y-3 pt-3 border-t border-zinc-800 animate-slide-up">
             <div>
-              <label htmlFor={nameId} className="field-label">Your name</label>
+              <label htmlFor={nameId} className="block text-xs font-medium text-zinc-400 mb-1.5">
+                Your Full Name
+              </label>
               <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
-              <Input
-                id={nameId}
-                type="text"
-                required
-                placeholder="Your Full Name"
-                aria-label="Your Full Name"
-                className="bg-white border-border focus-visible:ring-accent/50 pl-9 h-9 text-sm"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={disabled}
-              />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+                <Input
+                  id={nameId}
+                  type="text"
+                  required
+                  placeholder="e.g. Alex Morgan"
+                  aria-label="Your Full Name"
+                  className="bg-zinc-900/90 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-orange-500/50 pl-9 h-9 text-xs rounded-lg"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={disabled}
+                />
               </div>
             </div>
             <div>
-              <label htmlFor={emailId} className="field-label">Email address</label>
+              <label htmlFor={emailId} className="block text-xs font-medium text-zinc-400 mb-1.5">
+                Work or Personal Email
+              </label>
               <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary/50 pointer-events-none" />
-              <Input
-                id={emailId}
-                type="email"
-                required
-                placeholder="Your Email Address"
-                aria-label="Your Email Address"
-                className="bg-white border-border focus-visible:ring-accent/50 pl-9 h-9 text-sm"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={disabled}
-              />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+                <Input
+                  id={emailId}
+                  type="email"
+                  required
+                  placeholder="alex@company.com"
+                  aria-label="Your Email Address"
+                  className="bg-zinc-900/90 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-orange-500/50 pl-9 h-9 text-xs rounded-lg"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={disabled}
+                />
               </div>
             </div>
             <Button
               type="submit"
               disabled={disabled}
-              className="w-full bg-gradient-to-r from-accent to-accent2 text-white font-semibold rounded-xl shadow-md shadow-accent/20 hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 active:scale-[0.98] transition-all h-10"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold rounded-lg shadow-md transition-all h-9 text-xs mt-2"
             >
-              Confirm Meeting
+              Confirm Interview Booking
             </Button>
           </div>
         )}
