@@ -25,3 +25,4 @@ backend/tests/results*.json
 backend/scripts/run_evals.py
 scaler_eval_report.md
 loom_script.md
+scripts/
