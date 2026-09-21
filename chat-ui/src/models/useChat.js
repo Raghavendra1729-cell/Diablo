@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { parseChatResponse } from '@/lib/chatResponse';
+import { buildChatHistory } from '@/lib/chatHistory';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
@@ -25,10 +26,15 @@ export function useChat() {
   const messagesRef = useRef(messages);
   const loadingRef = useRef(loading);
   const isMounted = useRef(true);
+  const activeRequest = useRef(null);
+  const sessionId = useRef(0);
 
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    return () => {
+      isMounted.current = false;
+      activeRequest.current?.abort();
+    };
   }, []);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -60,6 +66,9 @@ export function useChat() {
   const sendMessage = useCallback(async (text) => {
     if (!text.trim() || loadingRef.current) return;
     const userMsg = text.trim();
+    const history = buildChatHistory(messagesRef.current);
+    const requestSession = sessionId.current;
+    const controller = new AbortController();
     setInput('');
 
     loadingRef.current = true; // Sync lock prevents rapid click double-fire
@@ -81,18 +90,12 @@ export function useChat() {
     }
 
     try {
-      const history = [...messagesRef.current, { role: 'user', content: userMsg }]
-          .filter((message) => !message.isError)
-          .map((m) => ({
-            role: m.role,
-            content: m.booking_details ? `${m.content}\n[Booking ID: ${m.booking_details.booking_id}]` : m.content
-          }))
-          .slice(-20);
+      activeRequest.current = controller;
       const res = await axios.post(`${API_URL}/v1/chat`, {
         message: userMsg, history, channel: 'web',
-      }, { timeout: 35000 });
+      }, { timeout: 55000, signal: controller.signal });
       const parsed = parseChatResponse(res.data);
-      if (isMounted.current) {
+      if (isMounted.current && sessionId.current === requestSession) {
         setMessages((prev) => [
           ...prev,
           {
@@ -106,10 +109,12 @@ export function useChat() {
         ]);
       }
     } catch (err) {
-      if (isMounted.current) {
+      if (isMounted.current && sessionId.current === requestSession && err.code !== 'ERR_CANCELED') {
         const isRateLimited = err.response?.status === 429;
         const detail = isRateLimited
           ? 'Diablo is handling several requests. Please wait a moment and retry.'
+          : err.code === 'ECONNABORTED'
+            ? 'The AI provider took too long to respond. Please try again.'
           : 'Diablo could not complete that request. Your message was not lost.';
         setMessages((prev) => [
           ...prev,
@@ -123,17 +128,26 @@ export function useChat() {
         ]);
       }
     } finally {
-      loadingRef.current = false;
-      if (isMounted.current) {
-        setLoading(false);
-        textareaRef.current?.focus();
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        loadingRef.current = false;
+        if (isMounted.current) {
+          setLoading(false);
+          textareaRef.current?.focus();
+        }
       }
     }
   }, []);
 
   const resetChat = useCallback(() => {
+    sessionId.current += 1;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    loadingRef.current = false;
+    messagesRef.current = [];
     setMessages([]);
     setInput('');
+    setLoading(false);
   }, []);
 
   const handleSubmit = (e) => { e.preventDefault(); sendMessage(input); };

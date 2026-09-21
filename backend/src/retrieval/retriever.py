@@ -266,6 +266,8 @@ def retrieve_from_local_data(query: str, repo_name: str | None = None, top_k: in
     scored = []
     for fname, sec in sections:
         sec_lower = sec.lower()
+        if repo_name and repo_name.lower() not in sec_lower:
+            continue
         repo_boost = 10 if (repo_name and repo_name.lower() in sec_lower) else 0
 
         skill_boost = 0
@@ -288,13 +290,15 @@ def retrieve_from_local_data(query: str, repo_name: str | None = None, top_k: in
         sec_words = set(re.findall(r'\w+', sec_lower))
         overlap = len(meaningful_q_words & sec_words)
         total_score = overlap + repo_boost + skill_boost + project_boost + hire_boost
-        if total_score > 0:
+        # Generic words such as "query" alone are not evidence. Require strong
+        # lexical overlap unless the query has a recognized topic/repo boost.
+        required_overlap = min(4, max(2, (3 * len(meaningful_q_words) + 3) // 4))
+        if ((repo_boost or skill_boost or project_boost or hire_boost) and total_score >= 2
+                or overlap >= required_overlap):
             scored.append((total_score, sec))
 
     scored.sort(key=lambda x: x[0], reverse=True)
     results = [s[1] for s in scored[:top_k]]
-    if not results and sections:
-        return [sec for fname, sec in sections if fname in ["resume.md", "project_index.md"]][:top_k]
     return results
 
 

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.retrieval.retriever import retrieve_context, NO_CONTEXT_SENTINEL, _expand_query, _detect_intent
+from src.retrieval.retriever import retrieve_context, retrieve_from_local_data, NO_CONTEXT_SENTINEL, _expand_query, _detect_intent
 from src.vectordb.vector_store import check_collection_ready
 
 @pytest.fixture
@@ -69,3 +69,10 @@ def test_retrieve_context_rerank_fallback():
     with patch("src.retrieval.retriever.search", return_value=[]):
         result = retrieve_context("random")
         assert result == [NO_CONTEXT_SENTINEL]
+
+
+def test_local_fallback_does_not_return_unrelated_repo_evidence():
+    sections = [("projects_summary.md", "## Diablo\nFastAPI chat system and Qdrant retrieval.")]
+    with patch("src.retrieval.retriever._get_local_sections", return_value=sections):
+        assert retrieve_from_local_data("How is the Khaao backend built?", repo_name="Khaao") == []
+        assert retrieve_from_local_data("a completely random query") == []

@@ -18,7 +18,7 @@ from src.config import (
 logger = logging.getLogger(__name__)
 
 LLM_TIMEOUT_VOICE = 10   # aggressive; allows 2 tool turns inside 30s Vapi window
-LLM_TIMEOUT_WEB   = 60   # allows complete multi-paragraph output without cutting off
+LLM_TIMEOUT_WEB   = 25   # bound stalled provider calls before the browser gives up
 
 _RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -38,10 +38,11 @@ def get_client(timeout: int) -> OpenAI:
         base_url=LLM_BASE_URL,
         api_key=HF_TOKEN,
         timeout=timeout,
+        max_retries=0,  # the SDK otherwise retries inside each application attempt
     )
 
 
-async def generate(messages: list[dict], max_retries: int = 1, channel: str = "web") -> str:
+async def generate(messages: list[dict], max_retries: int | None = None, channel: str = "web") -> str:
     """Send messages to LLM, return response text. Async with retry logic.
 
     The blocking OpenAI HTTP call is offloaded to a threadpool thread via
@@ -54,6 +55,8 @@ async def generate(messages: list[dict], max_retries: int = 1, channel: str = "w
     max_retries is set to 1 (not 2) to prevent duplicate LLM costs during
     Vapi retry storms. The in-flight lock in main.py is the primary defence.
     """
+    if max_retries is None:
+        max_retries = 1 if channel == "voice" else 0
     max_tokens = LLM_MAX_TOKENS_VOICE if channel == "voice" else LLM_MAX_TOKENS
     temperature = LLM_TEMPERATURE_VOICE if channel == "voice" else LLM_TEMPERATURE
     last_exc = None
