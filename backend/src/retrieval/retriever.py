@@ -177,6 +177,10 @@ def _detect_intent(query: str) -> str | None:
     None      — search all document types (default)
     """
     try:
+        # General skills questions should search the resume, not source-code
+        # chunks that happen to mention a "stack" or a portfolio Skills page.
+        if re.search(r"\bskills?\b", query, re.IGNORECASE):
+            return "resume"
         if _RESUME_INTENT.search(query):
             return "resume"
         if _CODE_INTENT.search(query):

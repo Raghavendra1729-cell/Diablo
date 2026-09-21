@@ -34,6 +34,7 @@ def mock_search_with_filter():
 
 def test_intent_detection():
     assert _detect_intent("What is his education?") == "resume"
+    assert _detect_intent("Technical skills & stack") == "resume"
     assert _detect_intent("Show me the github repos") == "code"
     assert _detect_intent("How are you?") is None
 
