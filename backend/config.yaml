@@ -15,7 +15,7 @@ retrieval:
   top_k: 4                       
 
 llm:
-  model: "MiniMaxAI/MiniMax-M3"
+  model: "MiniMaxAI/MiniMax-M3:novita"  # avoid the router's intermittently stalled default provider
   provider: "huggingface"
   base_url: "https://router.huggingface.co/v1"
   max_tokens: 1500        
